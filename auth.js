@@ -10,16 +10,28 @@ const DEMO_USER = {
   user_metadata: { display_name: "Demo User" }
 };
 
-let useDemoMode = false;
+// Check localStorage for demo mode flag
+let useDemoMode = localStorage.getItem("nutrifam_demo_mode") === "true";
+if (useDemoMode) {
+  currentUser = DEMO_USER;
+  console.log("✓ Demo mode restored from localStorage");
+}
 
 export function enableDemoMode() {
   useDemoMode = true;
   currentUser = DEMO_USER;
+  localStorage.setItem("nutrifam_demo_mode", "true");
   console.log("✓ Demo mode enabled - using demo user");
 }
 
 export function isDemoMode() {
   return useDemoMode;
+}
+
+export function disableDemoMode() {
+  useDemoMode = false;
+  currentUser = null;
+  localStorage.removeItem("nutrifam_demo_mode");
 }
 
 // Get current authenticated user

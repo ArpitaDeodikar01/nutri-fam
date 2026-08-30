@@ -18,7 +18,8 @@ import {
   getUserId,
   getUserDisplayName,
   enableDemoMode,
-  isDemoMode
+  isDemoMode,
+  disableDemoMode
 } from "./auth.js";
 
 // Import scoring functions and config
@@ -454,7 +455,7 @@ document.getElementById("demoModeBtn").onclick = async () => {
   hideAuthModal();
   document.getElementById("authEmail").value = "";
   document.getElementById("authPassword").value = "";
-  // Reload to initialize with demo user
+  // Refresh to initialize with demo user
   window.location.reload();
 };
 
