@@ -38,8 +38,7 @@ export async function saveDailyLog(logData) {
         carbs_g: logData.nutrition?.carbs || 0,
         fats_g: logData.nutrition?.fats || 0,
         water_ml: logData.water || 0,
-        sleep_hrs: logData.sleep || 0,
-        meals: logData.meals || []
+        sleep_hrs: logData.sleep || 0
       },
       { onConflict: "family_id,user_id,log_date" }
     );
@@ -81,7 +80,7 @@ export async function loadTodayLog() {
       fats: data.fats_g
     },
     sleep: data.sleep_hrs,
-    meals: data.meals || []
+    meals: [] // Meals stored locally only
   };
 }
 
@@ -95,17 +94,31 @@ export async function loadFamilyLeaderboard() {
   
   const { data, error } = await supabase
     .from("daily_logs")
-    .select("*, family_members(display_name)")
+    .select("*")
     .eq("family_id", currentFamilyId)
     .eq("log_date", logDate);
   
   if (error) throw error;
   
+  // Fetch family members separately
+  const { data: members, error: memberError } = await supabase
+    .from("family_members")
+    .select("user_id, display_name")
+    .eq("family_id", currentFamilyId);
+  
+  if (memberError) throw memberError;
+  
+  // Create lookup map for display names
+  const memberMap = {};
+  (members || []).forEach(m => {
+    memberMap[m.user_id] = m.display_name;
+  });
+  
   // Transform to app format
   return data.map(log => ({
     userId: log.user_id,
-    name: log.family_members?.display_name || log.user_id,
-    initials: (log.family_members?.display_name || log.user_id)[0].toUpperCase(),
+    name: memberMap[log.user_id] || log.user_id,
+    initials: (memberMap[log.user_id] || log.user_id)[0].toUpperCase(),
     activity: log.activity || [],
     nutrition: {
       protein: log.protein_g,
