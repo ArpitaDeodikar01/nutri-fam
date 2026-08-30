@@ -70,10 +70,10 @@ export async function loadTodayLog() {
   if (!currentFamilyId) return null;
   
   const logDate = new Date().toISOString().slice(0, 10);
-  const encoded = encodeURIComponent(`family_id=eq.${currentFamilyId},user_id=eq.${userId},log_date=eq.${logDate}`);
   
   try {
-    const data = await restCall("GET", `/daily_logs?and=(${encoded})`);
+    const endpoint = `/daily_logs?family_id=eq.${currentFamilyId}&user_id=eq.${userId}&log_date=eq.${logDate}`;
+    const data = await restCall("GET", endpoint);
     if (!data || data.length === 0) return null;
     
     const log = data[0];
@@ -90,7 +90,7 @@ export async function loadTodayLog() {
       meals: []
     };
   } catch (e) {
-    if (e.message.includes("406")) return null; // Not found
+    if (e.message.includes("400")) return null;
     throw e;
   }
 }
@@ -100,13 +100,11 @@ export async function loadFamilyLeaderboard() {
   if (!currentFamilyId) return [];
   
   const logDate = new Date().toISOString().slice(0, 10);
-  const encoded = encodeURIComponent(`family_id=eq.${currentFamilyId},log_date=eq.${logDate}`);
   
-  const logs = await restCall("GET", `/daily_logs?and=(${encoded})`);
+  const logs = await restCall("GET", `/daily_logs?family_id=eq.${currentFamilyId}&log_date=eq.${logDate}`);
   
   // Fetch family members
-  const encoded2 = encodeURIComponent(`family_id=eq.${currentFamilyId}`);
-  const members = await restCall("GET", `/family_members?${encoded2}`);
+  const members = await restCall("GET", `/family_members?family_id=eq.${currentFamilyId}`);
   
   // Create lookup map
   const memberMap = {};
@@ -185,15 +183,13 @@ export async function loadUserFamilies() {
   const userId = getUserId();
   if (!userId) return [];
   
-  const encoded = encodeURIComponent(`user_id=eq.${userId}`);
-  const members = await restCall("GET", `/family_members?${encoded}`);
+  const members = await restCall("GET", `/family_members?user_id=eq.${userId}`);
   
-  if (!members) return [];
+  if (!members || members.length === 0) return [];
   
   // Fetch families
-  const familyIds = members.map(m => m.family_id);
-  const encoded2 = encodeURIComponent(`id=in.(${familyIds.join(",")})`);
-  const families = await restCall("GET", `/families?${encoded2}`);
+  const familyIds = members.map(m => m.family_id).join(",");
+  const families = await restCall("GET", `/families?id=in.(${familyIds})`);
   
   return families || [];
 }
