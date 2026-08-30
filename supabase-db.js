@@ -66,11 +66,11 @@ export async function saveDailyLog(logData) {
     sleep_hrs: logData.sleep || 0
   };
   
-  // Try INSERT, if conflict update
+  // Try INSERT, if conflict (409) update
   try {
     await restCall("POST", "/daily_logs", body);
   } catch (e) {
-    if (e.message.includes("duplicate")) {
+    if (e.message.includes("409") || e.message.includes("duplicate") || e.message.includes("constraint")) {
       // Update existing record
       await restCall("PATCH", `/daily_logs?family_id=eq.${currentFamilyId}&user_id=eq.${userId}&log_date=eq.${logDate}`, body);
     } else {
@@ -154,6 +154,10 @@ export async function createFamily(familyName) {
     name: familyName,
     created_by: userId
   });
+  
+  if (!family || !family.id) {
+    throw new Error("Failed to create family - no ID returned");
+  }
   
   // Add creator as member
   await restCall("POST", "/family_members", {
