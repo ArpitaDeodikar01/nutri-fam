@@ -1,3 +1,24 @@
+// Import Supabase database functions
+import {
+  saveDailyLog,
+  loadTodayLog,
+  loadFamilyLeaderboard,
+  createFamily,
+  joinFamilyByToken,
+  getCurrentFamily,
+  setCurrentFamily,
+  loadUserFamilies
+} from "./supabase-db.js";
+
+import {
+  getCurrentUser,
+  signIn,
+  signUp,
+  signOut,
+  getUserId,
+  getUserDisplayName
+} from "./auth.js";
+
 // Import scoring functions and config
 import { 
   totalScore, 
@@ -59,9 +80,17 @@ const defaultData = {
   ]
 };
 
-let data = JSON.parse(localStorage.getItem("nutrifamData") || "null") || structuredClone(defaultData);
+let data = structuredClone(defaultData);
 
-function save(){ localStorage.setItem("nutrifamData", JSON.stringify(data)); }
+async function save(){
+  try {
+    await saveDailyLog(data.today);
+  } catch (error) {
+    console.error("Failed to save daily log:", error);
+    toast("Error saving data: " + error.message);
+  }
+}
+
 function todayKey(){ return new Date().toISOString().slice(0,10); }
 function getToday(){ return data.today; }
 
@@ -177,16 +206,29 @@ function renderMiniFamily(){
 }
 
 function renderLeaderboard(){
-  const sorted=[...data.family].sort((a,b)=>b.score-a.score);
-  const leaderScore = sorted[0]?.score || 0;
-  const viewerName = data.profile.name;
-  
-  const html=sorted.map((x,i)=>{
-    const breakdown = scoreBreakdown(x);
-    const isViewer = x.name === viewerName;
-    const motivational = isViewer ? motivationalMessage(x, leaderScore, true) : '';
-    
-    return `
+  // Load leaderboard from Supabase
+  (async () => {
+    try {
+      const logs = await loadFamilyLeaderboard();
+      const userId = getUserId();
+      const viewerName = userId;
+      
+      // Calculate scores for each member
+      const members = logs.map(log => ({
+        ...log,
+        score: totalScore(log)
+      }));
+      
+      // Sort by score descending
+      const sorted = members.sort((a, b) => b.score - a.score);
+      const leaderScore = sorted[0]?.score || 0;
+      
+      const html = sorted.map((x, i) => {
+        const breakdown = scoreBreakdown(x);
+        const isViewer = x.userId === userId;
+        const motivational = isViewer ? motivationalMessage(x, leaderScore, true) : '';
+        
+        return `
     <div class="leaderboard-row">
       <span class="leaderboard-rank">${i===0?"👑":["🥈","🥉",...Array(sorted.length-2).fill(i+1)][i]}</span>
       <div class="leaderboard-member">
@@ -197,7 +239,13 @@ function renderLeaderboard(){
       <span class="leaderboard-score">${x.score}</span>
     </div>
   `}).join("");
-  document.getElementById("leaderboardContainer").innerHTML=html;
+      
+      document.getElementById("leaderboardContainer").innerHTML = html;
+    } catch (error) {
+      console.error("Failed to load leaderboard:", error);
+      document.getElementById("leaderboardContainer").innerHTML = `<div style="color: var(--muted); font-size: 12px;">Error loading leaderboard: ${error.message}</div>`;
+    }
+  })();
 }
 
 function renderMeals(){
@@ -283,23 +331,28 @@ document.getElementById("addActivityBtn").onclick=()=>{
 const familyModal=document.getElementById("createFamilyModal");
 document.getElementById("createFamilyBtn").onclick=()=>{familyModal.classList.remove("hidden")};
 document.getElementById("closeFamilyModal").onclick=()=>familyModal.classList.add("hidden");
-document.getElementById("createFamilySubmit").onclick=()=>{
+document.getElementById("createFamilySubmit").onclick=async ()=>{
   const familyName=document.getElementById("familyNameInput").value.trim();
   if(!familyName)return toast("Enter a family name.");
-  const token = generateToken();
-  data.families[token]={name:familyName,members:[data.profile.name],createdBy:data.profile.name};
-  data.familyId=token;
-  save();
-  toast("Family created!");
-  familyModal.classList.add("hidden");
-  document.getElementById("familyNameInput").value="";
-  generateInviteLink();
-  renderAll();
+  
+  try {
+    const family = await createFamily(familyName);
+    toast("Family created!");
+    familyModal.classList.add("hidden");
+    document.getElementById("familyNameInput").value="";
+    setCurrentFamily(family.id);
+    generateInviteLink();
+    renderAll();
+  } catch (error) {
+    console.error("Failed to create family:", error);
+    toast("Error creating family: " + error.message);
+  }
 };
 
 function generateInviteLink(){
-  if(!data.familyId || !data.families[data.familyId])return;
-  const link=`${window.location.origin}${window.location.pathname}?join=${data.familyId}`;
+  const familyId = getCurrentFamily();
+  if(!familyId)return;
+  const link=`${window.location.origin}${window.location.pathname}?join=${familyId}`;
   document.getElementById("familyLinkPanel").style.display="block";
   document.getElementById("inviteLinkDisplay").textContent=link;
   document.getElementById("whatsappBtn").onclick=()=>{
@@ -308,28 +361,66 @@ function generateInviteLink(){
   };
 }
 
-// Handle invite link — auto-join family if not logged in
+// Handle invite link — auto-join family if logged in
 const params=new URLSearchParams(window.location.search);
 const joinToken=params.get("join");
-if(joinToken && data.familyId!==joinToken){
-  data.familyId=joinToken;
-  if(data.families[joinToken]){
-    if(!data.families[joinToken].members.includes(data.profile.name)){
-      data.families[joinToken].members.push(data.profile.name);
+
+if(joinToken) {
+  (async () => {
+    try {
+      const user = await getCurrentUser();
+      if (!user) {
+        console.log("User needs to log in first");
+        // In production, redirect to login, then redirect back with token
+        return;
+      }
+      
+      const family = await joinFamilyByToken(joinToken);
+      toast("Joined family!");
+      setCurrentFamily(family.id);
+      showView("family");
+      renderAll();
+    } catch (error) {
+      console.error("Failed to join family:", error);
+      toast("Error joining family: " + error.message);
     }
-    toast("Joined family!");
-  }
-  save();
-  showView("family");
+  })();
 }
 
 document.getElementById("profileBtn").onclick=()=>toast("Profile settings coming in the next version.");
 
-const now=new Date();setText("dateLabel",now.toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"long",year:"numeric"}).toUpperCase());
-setText("greeting",`Good ${now.getHours()<12?"morning":now.getHours()<18?"afternoon":"evening"}, ${data.profile.name} 👋`);
-setText("sidebarTip",MOTIVATIONS[now.getDate()%MOTIVATIONS.length][0]);
-
-// Show invite link if family exists
-if(data.familyId && data.families[data.familyId]) generateInviteLink();
-
-updatePreview();renderAll();
+// Initialize app with user and family data
+(async () => {
+  try {
+    const user = await getCurrentUser();
+    const displayName = user ? await getUserDisplayName() : "Guest";
+    const now = new Date();
+    
+    setText("dateLabel", now.toLocaleDateString("en-IN", {weekday:"long", day:"numeric", month:"long", year:"numeric"}).toUpperCase());
+    setText("greeting", `Good ${now.getHours()<12?"morning":now.getHours()<18?"afternoon":"evening"}, ${displayName} 👋`);
+    setText("sidebarTip", MOTIVATIONS[now.getDate()%MOTIVATIONS.length][0]);
+    
+    // Load user's families and set first one as current
+    if (user) {
+      const families = await loadUserFamilies();
+      if (families.length > 0) {
+        setCurrentFamily(families[0].id);
+        const todayLog = await loadTodayLog();
+        if (todayLog) {
+          data.today = todayLog;
+        }
+      }
+    }
+    
+    updatePreview();
+    renderAll();
+  } catch (error) {
+    console.error("Failed to initialize app:", error);
+    const now = new Date();
+    setText("dateLabel", now.toLocaleDateString("en-IN", {weekday:"long", day:"numeric", month:"long", year:"numeric"}).toUpperCase());
+    setText("greeting", `Good ${now.getHours()<12?"morning":now.getHours()<18?"afternoon":"evening"}, Guest 👋`);
+    setText("sidebarTip", MOTIVATIONS[now.getDate()%MOTIVATIONS.length][0]);
+    updatePreview();
+    renderAll();
+  }
+})();
