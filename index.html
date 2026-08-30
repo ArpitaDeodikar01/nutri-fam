@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>NutriFam — Family Wellness Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">N</div>
+        <div>
+          <strong>NutriFam</strong>
+          <span>Family wellness</span>
+        </div>
+      </div>
+      <nav>
+        <button class="nav-item active" data-view="dashboard">🏠 <span>Dashboard</span></button>
+        <button class="nav-item" data-view="meals">🍱 <span>Meals</span></button>
+        <button class="nav-item" data-view="family">👨‍👩‍👧‍👦 <span>Family</span></button>
+        <button class="nav-item" data-view="progress">📊 <span>Progress</span></button>
+      </nav>
+      <div class="sidebar-tip">
+        <span>✨</span>
+        <p id="sidebarTip">Small steps become big changes.</p>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow" id="dateLabel"></p>
+          <h1 id="greeting">Good evening, Arpita 👋</h1>
+        </div>
+        <button class="profile-chip" id="profileBtn">
+          <span class="avatar">A</span>
+          <span>Arpita</span>
+          <span>⌄</span>
+        </button>
+      </header>
+
+      <section id="dashboardView" class="view active">
+        <div class="hero-grid">
+          <div class="hero-card">
+            <div>
+              <p class="eyebrow">TODAY'S PROGRESS</p>
+              <h2 id="progressPercent">0%</h2>
+              <p id="progressMessage">Let's get started!</p>
+            </div>
+            <div class="ring" id="progressRing"><span id="ringValue">0%</span></div>
+          </div>
+          <div class="streak-card">
+            <span class="streak-icon">🔥</span>
+            <div>
+              <p class="eyebrow">CURRENT STREAK</p>
+              <h3><span id="streakCount">0</span> days</h3>
+              <p>Consistency beats perfection.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-heading">
+          <div><p class="eyebrow">DAILY GOALS</p><h2>Your four essentials</h2></div>
+        </div>
+
+        <div class="goal-grid">
+          <article class="goal-card">
+            <div class="goal-top"><div class="goal-icon meal">🍱</div><span class="status-pill" id="mealStatus">Not tracked</span></div>
+            <h3>Meals</h3>
+            <div class="metric"><strong id="caloriesValue">0</strong><span>kcal</span></div>
+            <p><span id="proteinValue">0</span>g protein logged</p>
+            <button class="outline-btn" data-view-target="meals">+ Add meal</button>
+          </article>
+
+          <article class="goal-card">
+            <div class="goal-top"><div class="goal-icon protein">🥛</div><span class="status-pill" id="shakeStatus">Pending</span></div>
+            <h3>Protein shake</h3>
+            <div class="metric"><strong id="shakeProtein">0</strong><span>g protein</span></div>
+            <p>Daily shake goal</p>
+            <button class="toggle-btn" id="shakeBtn">Mark as taken</button>
+          </article>
+
+          <article class="goal-card">
+            <div class="goal-top"><div class="goal-icon water">💧</div><span class="status-pill" id="waterStatus">0%</span></div>
+            <h3>Water</h3>
+            <div class="metric"><strong id="waterValue">0</strong><span>/ 2L</span></div>
+            <div class="progress-bar"><div id="waterBar"></div></div>
+            <div class="quick-add">
+              <button data-water="250">+250 ml</button>
+              <button data-water="500">+500 ml</button>
+              <button data-water="1000">+1 L</button>
+            </div>
+          </article>
+
+          <article class="goal-card">
+            <div class="goal-top"><div class="goal-icon sleep">😴</div><span class="status-pill" id="sleepStatus">0%</span></div>
+            <h3>Sleep</h3>
+            <div class="metric"><strong id="sleepValue">0</strong><span>/ 8h</span></div>
+            <div class="progress-bar"><div id="sleepBar"></div></div>
+            <div class="step-entry">
+              <input id="sleepInput" type="number" min="0" max="24" placeholder="Hours" />
+              <button id="saveSleep">Save</button>
+            </div>
+          </article>
+
+          <article class="goal-card">
+            <div class="goal-top"><div class="goal-icon steps">👟</div></div>
+            <h3>Activity</h3>
+            <p id="activityValue" style="color:var(--muted);font-size:12px;margin:8px 0">No activity</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+              <select id="activityType" style="border:1px solid var(--line);border-radius:9px;padding:8px;font-size:12px">
+                <option>👟 Walking</option>
+                <option>🏃 Running</option>
+                <option>🚴 Cycling</option>
+                <option>🏊 Swimming</option>
+                <option>🧘 Yoga</option>
+                <option>🏋️ Strength</option>
+              </select>
+              <input id="activityVal" type="number" min="0" placeholder="Value" style="border:1px solid var(--line);border-radius:9px;padding:8px;font-size:12px" />
+            </div>
+            <button class="outline-btn" id="addActivityBtn" style="width:100%;margin-top:10px">+ Log activity</button>
+          </article>
+        </div>
+
+        <div class="lower-grid">
+          <section class="panel">
+            <div class="section-heading compact"><div><p class="eyebrow">MOTIVATION</p><h2>Today's boost</h2></div><span class="sparkle">✨</span></div>
+            <div class="motivation-box"><div class="quote-mark">“</div><p id="motivationText"></p><span id="motivationSub"></span></div>
+          </section>
+          <section class="panel">
+            <div class="section-heading compact"><div><p class="eyebrow">FAMILY</p><h2>This week's vibe</h2></div><button class="text-btn" data-view-target="family">View all →</button></div>
+            <div id="miniFamily"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="mealsView" class="view">
+        <div class="page-heading"><div><p class="eyebrow">NUTRITION</p><h2>Track your meals</h2><p>Choose foods, enter quantities, and NutriFam calculates your nutrition.</p></div></div>
+        <div class="meal-layout">
+          <section class="panel">
+            <h3>Add a meal</h3>
+            <div class="form-grid">
+              <label>Meal type<select id="mealType"><option>Breakfast</option><option>Lunch</option><option>Snack</option><option>Dinner</option></select></label>
+              <label>Food<select id="foodSelect"></select></label>
+              <label>Quantity (g)<input id="foodQty" type="number" min="1" value="100"></label>
+            </div>
+            <div class="nutrition-preview">
+              <div><span>Calories</span><strong id="previewCalories">0 kcal</strong></div>
+              <div><span>Protein</span><strong id="previewProtein">0 g</strong></div>
+              <div><span>Carbs</span><strong id="previewCarbs">0 g</strong></div>
+              <div><span>Fat</span><strong id="previewFat">0 g</strong></div>
+            </div>
+            <button class="primary-btn" id="addMealBtn">Add to today's meals</button>
+          </section>
+          <section class="panel">
+            <div class="section-heading compact"><div><p class="eyebrow">TODAY</p><h3>Nutrition summary</h3></div></div>
+            <div class="big-stat"><strong id="mealCaloriesTotal">0</strong><span>kcal</span></div>
+            <div class="macro-row"><span>Protein</span><strong id="mealProteinTotal">0g</strong></div>
+            <div class="macro-row"><span>Carbs</span><strong id="mealCarbsTotal">0g</strong></div>
+            <div class="macro-row"><span>Fat</span><strong id="mealFatTotal">0g</strong></div>
+          </section>
+        </div>
+        <section class="panel meal-history">
+          <div class="section-heading compact"><div><p class="eyebrow">LOG</p><h3>Today's meals</h3></div></div>
+          <div id="mealList" class="meal-list"></div>
+        </section>
+      </section>
+
+      <section id="familyView" class="view">
+        <div class="page-heading">
+          <div><p class="eyebrow">YOUR FAMILY</p><h2>Grow healthier together 👨‍👩‍👧‍👦</h2><p>See everyone's progress and cheer each other on.</p></div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="primary-btn" id="createFamilyBtn">+ Create family</button>
+            <button class="primary-btn" id="joinFamilyBtn" style="display:none">+ Join family</button>
+          </div>
+        </div>
+        <section class="panel" id="familyLinkPanel" style="display:none">
+          <h3>Your invite link</h3>
+          <p style="color:var(--muted);font-size:12px;margin-bottom:12px">Share this link for family members to join:</p>
+          <div id="inviteLinkDisplay" style="background:#f5f7f4;padding:12px;border-radius:10px;font-size:12px;word-break:break-all;margin-bottom:12px"></div>
+          <button class="primary-btn" id="whatsappBtn" style="width:100%">💬 Share via WhatsApp</button>
+        </section>
+        <section class="panel">
+          <div class="section-heading compact"><p class="eyebrow">LEADERBOARD</p><h3 style="margin:0">Today's standings</h3></div>
+          <div style="margin-top:15px" id="leaderboardContainer"></div>
+        </section>
+        <section class="panel" style="margin-top:18px;display:none" id="updatePrompt">
+          <h3>Missing updates</h3>
+          <p style="color:var(--muted);font-size:12px;margin-bottom:12px">Tap to log today's activities:</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <button class="outline-btn" data-view-target="dashboard" style="width:100%;text-align:center">👟 Activity</button>
+            <button class="outline-btn" data-view-target="meals" style="width:100%;text-align:center">🍱 Nutrition</button>
+            <button class="outline-btn" data-view-target="dashboard" style="width:100%;text-align:center">💧 Water</button>
+            <button class="outline-btn" data-view-target="dashboard" style="width:100%;text-align:center">😴 Sleep</button>
+          </div>
+        </section>
+      </section>
+
+      <section id="progressView" class="view">
+        <div class="page-heading"><div><p class="eyebrow">INSIGHTS</p><h2>Your progress</h2><p>Simple trends to help you stay consistent.</p></div></div>
+        <div class="stats-grid">
+          <div class="stat-card"><span>🔥 Best streak</span><strong id="bestStreak">0 days</strong></div>
+          <div class="stat-card"><span>📊 Avg. score</span><strong id="avgScore">0</strong></div>
+          <div class="stat-card"><span>💧 Water goals</span><strong id="waterGoals">0/7</strong></div>
+          <div class="stat-card"><span>😴 Sleep goals</span><strong id="sleepGoals">0/7</strong></div>
+        </div>
+        <section class="panel">
+          <div class="section-heading compact"><div><p class="eyebrow">LAST 7 DAYS</p><h3>Goal completion</h3></div></div>
+          <div id="weekChart" class="week-chart"></div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal hidden" id="inviteModal">
+    <div class="modal-card">
+      <button class="close-btn" id="closeModal">×</button>
+      <p class="eyebrow">INVITE</p><h2>Bring someone along</h2>
+      <p>For this MVP, invitations are simulated locally. Enter a name and email to add a family member.</p>
+      <label>Name<input id="inviteName" placeholder="e.g. Mom"></label>
+      <label>Email<input id="inviteEmail" type="email" placeholder="name@example.com"></label>
+      <button class="primary-btn" id="sendInvite">Send invite</button>
+      <p class="tiny" id="inviteResult"></p>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="createFamilyModal">
+    <div class="modal-card">
+      <button class="close-btn" id="closeFamilyModal">×</button>
+      <p class="eyebrow">CREATE</p><h2>Start your family</h2>
+      <p>Give your family a name to get started.</p>
+      <label>Family name<input id="familyNameInput" placeholder="e.g. The Smiths"></label>
+      <button class="primary-btn" id="createFamilySubmit">Create family</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
