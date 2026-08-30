@@ -430,12 +430,16 @@ document.getElementById("authSubmit").onclick = async () => {
   try {
     if (isSignupMode) {
       await signUp(email, password);
-      toast("Account created! Please log in.");
+      toast("Account created! Logging you in...");
+      // Disable demo mode when signing up with real auth
+      disableDemoMode();
       isSignupMode = false;
       document.getElementById("authTitle").textContent = "Sign In";
       document.getElementById("authSubmit").textContent = "Sign In";
     } else {
       await signIn(email, password);
+      // Disable demo mode when signing in with real auth
+      disableDemoMode();
       toast("Logged in successfully!");
       hideAuthModal();
       document.getElementById("authEmail").value = "";
