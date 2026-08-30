@@ -63,8 +63,17 @@ export async function signUp(email, password, displayName) {
   
   if (error) throw error;
   
-  // User created, now create family_member entry (optional at signup)
-  // This will be done when user joins/creates family
+  // For MVP: Immediately sign in after signup (bypass email confirmation)
+  // Remove this in production and handle email verification
+  const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+    email,
+    password
+  });
+  
+  if (signInError && signInError.message.includes("Email not confirmed")) {
+    // Email confirmation required - user must verify email first
+    throw new Error("Please check your email to confirm your account. Then sign in.");
+  }
   
   return data.user;
 }

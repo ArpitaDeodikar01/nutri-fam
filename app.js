@@ -340,11 +340,6 @@ const familyModal=document.getElementById("createFamilyModal");
 document.getElementById("createFamilyBtn").onclick=()=>{familyModal.classList.remove("hidden")};
 document.getElementById("closeFamilyModal").onclick=()=>familyModal.classList.add("hidden");
 document.getElementById("createFamilySubmit").onclick=async ()=>{
-  if (isDemoMode()) {
-    toast("Family creation not available in demo mode. Use real auth to create families.");
-    return;
-  }
-  
   const familyName=document.getElementById("familyNameInput").value.trim();
   if(!familyName)return toast("Enter a family name.");
   
