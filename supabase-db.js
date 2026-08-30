@@ -16,6 +16,7 @@ export function getCurrentFamily() {
 
 // Save daily log (replaces localStorage.setItem)
 export async function saveDailyLog(logData) {
+  const supabase = window.supabaseClient;
   if (!supabase) throw new Error("Supabase not initialized");
   
   const userId = getUserId();
@@ -48,6 +49,7 @@ export async function saveDailyLog(logData) {
 
 // Load today's log (replaces localStorage.getItem)
 export async function loadTodayLog() {
+  const supabase = window.supabaseClient;
   if (!supabase) throw new Error("Supabase not initialized");
   
   const userId = getUserId();
@@ -85,6 +87,7 @@ export async function loadTodayLog() {
 
 // Load leaderboard (all family members' logs for today)
 export async function loadFamilyLeaderboard() {
+  const supabase = window.supabaseClient;
   if (!supabase) throw new Error("Supabase not initialized");
   if (!currentFamilyId) return [];
   
@@ -118,6 +121,7 @@ export async function loadFamilyLeaderboard() {
 
 // Create family
 export async function createFamily(familyName) {
+  const supabase = window.supabaseClient;
   if (!supabase) throw new Error("Supabase not initialized");
   
   const userId = getUserId();
@@ -149,6 +153,7 @@ export async function createFamily(familyName) {
 
 // Join family via invite token
 export async function joinFamilyByToken(token) {
+  const supabase = window.supabaseClient;
   if (!supabase) throw new Error("Supabase not initialized");
   
   const userId = getUserId();
@@ -184,6 +189,7 @@ export async function joinFamilyByToken(token) {
 
 // Load user's families
 export async function loadUserFamilies() {
+  const supabase = window.supabaseClient;
   if (!supabase) throw new Error("Supabase not initialized");
   
   const userId = getUserId();
@@ -201,6 +207,7 @@ export async function loadUserFamilies() {
 
 // Import helper (for auth.js)
 export async function getUserDisplayName() {
+  const supabase = window.supabaseClient;
   if (!supabase) return "Guest";
   const { data: { user } } = await supabase.auth.getUser();
   return user?.email?.split("@")[0] || "Guest";

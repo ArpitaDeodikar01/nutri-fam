@@ -5,6 +5,7 @@ let currentUser = null;
 
 // Get current authenticated user
 export async function getCurrentUser() {
+  const supabase = window.supabaseClient;
   if (!supabase) {
     console.error("Supabase not initialized");
     return null;
@@ -17,6 +18,7 @@ export async function getCurrentUser() {
 
 // Sign up new user
 export async function signUp(email, password, displayName) {
+  const supabase = window.supabaseClient;
   if (!supabase) throw new Error("Supabase not initialized");
   
   const { data, error } = await supabase.auth.signUp({
@@ -34,6 +36,7 @@ export async function signUp(email, password, displayName) {
 
 // Sign in
 export async function signIn(email, password) {
+  const supabase = window.supabaseClient;
   if (!supabase) throw new Error("Supabase not initialized");
   
   const { data, error } = await supabase.auth.signInWithPassword({
@@ -49,6 +52,7 @@ export async function signIn(email, password) {
 
 // Sign out
 export async function signOut() {
+  const supabase = window.supabaseClient;
   if (!supabase) throw new Error("Supabase not initialized");
   
   const { error } = await supabase.auth.signOut();
@@ -62,6 +66,7 @@ export async function getUserDisplayName() {
   if (!currentUser) return "Guest";
   
   // Try to get from family_members table (where display_name is stored)
+  const supabase = window.supabaseClient;
   if (!supabase) return currentUser.email.split("@")[0];
   
   // For now, return email prefix as display name
