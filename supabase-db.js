@@ -37,7 +37,9 @@ async function restCall(method, endpoint, body = null) {
     } catch {
       error = { message: text || res.statusText };
     }
-    throw new Error(error.message || `HTTP ${res.status}`);
+    const err = new Error(error.message || `HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
   }
   
   const text = await res.text();
@@ -70,7 +72,7 @@ export async function saveDailyLog(logData) {
   try {
     await restCall("POST", "/daily_logs", body);
   } catch (e) {
-    if (e.message.includes("409") || e.message.includes("duplicate") || e.message.includes("constraint")) {
+    if (e.status === 409 || e.message.includes("duplicate") || e.message.includes("constraint")) {
       // Update existing record
       await restCall("PATCH", `/daily_logs?family_id=eq.${currentFamilyId}&user_id=eq.${userId}&log_date=eq.${logDate}`, body);
     } else {
@@ -150,7 +152,7 @@ export async function createFamily(familyName) {
   const userId = getUserId();
   if (!userId) throw new Error("User not authenticated");
   
-  const family = await restCall("POST", "/families", {
+  const family = await restCall("POST", "/families?select=*", {
     name: familyName,
     created_by: userId
   });
