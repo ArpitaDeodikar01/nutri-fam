@@ -68,13 +68,13 @@ export async function saveDailyLog(logData) {
     sleep_hrs: logData.sleep || 0
   };
   
-  // Try INSERT, if conflict (409) update
   try {
-    await restCall("POST", "/daily_logs", body);
+    // Try PATCH (update) first — will create if doesn't exist
+    await restCall("PATCH", `/daily_logs?family_id=eq.${currentFamilyId}&user_id=eq.${userId}&log_date=eq.${logDate}`, body);
   } catch (e) {
-    if (e.status === 409 || e.message.includes("duplicate") || e.message.includes("constraint")) {
-      // Update existing record
-      await restCall("PATCH", `/daily_logs?family_id=eq.${currentFamilyId}&user_id=eq.${userId}&log_date=eq.${logDate}`, body);
+    // If PATCH fails (no row found), INSERT new row
+    if (e.status === 404 || e.message.includes("No rows updated")) {
+      await restCall("POST", "/daily_logs?select=*", body);
     } else {
       throw e;
     }
