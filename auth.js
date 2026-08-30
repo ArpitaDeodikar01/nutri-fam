@@ -3,8 +3,31 @@
 
 let currentUser = null;
 
+// Demo user for testing (bypass email confirmation)
+const DEMO_USER = {
+  id: "demo-user-123",
+  email: "demo@nutrifam.test",
+  user_metadata: { display_name: "Demo User" }
+};
+
+let useDemoMode = false;
+
+export function enableDemoMode() {
+  useDemoMode = true;
+  currentUser = DEMO_USER;
+  console.log("✓ Demo mode enabled - using demo user");
+}
+
+export function isDemoMode() {
+  return useDemoMode;
+}
+
 // Get current authenticated user
 export async function getCurrentUser() {
+  if (useDemoMode) {
+    return DEMO_USER;
+  }
+  
   const supabase = window.supabaseClient;
   if (!supabase) {
     console.error("Supabase not initialized");
