@@ -389,9 +389,25 @@ if(joinToken) {
 
 document.getElementById("profileBtn").onclick=()=>toast("Profile settings coming in the next version.");
 
+// Wait for Supabase to be initialized, then start app
+async function waitForSupabase(maxRetries = 50) {
+  for (let i = 0; i < maxRetries; i++) {
+    if (window.supabaseClient) {
+      console.log("✓ Supabase ready, starting app...");
+      return true;
+    }
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  console.warn("⚠ Supabase took too long to initialize, continuing anyway...");
+  return false;
+}
+
 // Initialize app with user and family data
 (async () => {
   try {
+    // Wait for Supabase client to be initialized
+    await waitForSupabase();
+    
     const user = await getCurrentUser();
     const displayName = user ? await getUserDisplayName() : "Guest";
     const now = new Date();
@@ -402,13 +418,17 @@ document.getElementById("profileBtn").onclick=()=>toast("Profile settings coming
     
     // Load user's families and set first one as current
     if (user) {
-      const families = await loadUserFamilies();
-      if (families.length > 0) {
-        setCurrentFamily(families[0].id);
-        const todayLog = await loadTodayLog();
-        if (todayLog) {
-          data.today = todayLog;
+      try {
+        const families = await loadUserFamilies();
+        if (families.length > 0) {
+          setCurrentFamily(families[0].id);
+          const todayLog = await loadTodayLog();
+          if (todayLog) {
+            data.today = todayLog;
+          }
         }
+      } catch (familyError) {
+        console.warn("Could not load families:", familyError.message);
       }
     }
     
