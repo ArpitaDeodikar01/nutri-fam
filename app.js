@@ -389,6 +389,57 @@ if(joinToken) {
 
 document.getElementById("profileBtn").onclick=()=>toast("Profile settings coming in the next version.");
 
+// Auth modal handlers
+let isSignupMode = false;
+
+function showAuthModal() {
+  document.getElementById("authModal").classList.remove("hidden");
+  isSignupMode = false;
+  document.getElementById("authTitle").textContent = "Sign In";
+  document.getElementById("authSubmit").textContent = "Sign In";
+}
+
+function hideAuthModal() {
+  document.getElementById("authModal").classList.add("hidden");
+}
+
+document.getElementById("toggleSignup").onclick = (e) => {
+  e.preventDefault();
+  isSignupMode = !isSignupMode;
+  document.getElementById("authTitle").textContent = isSignupMode ? "Create Account" : "Sign In";
+  document.getElementById("authSubmit").textContent = isSignupMode ? "Sign Up" : "Sign In";
+};
+
+document.getElementById("authSubmit").onclick = async () => {
+  const email = document.getElementById("authEmail").value.trim();
+  const password = document.getElementById("authPassword").value.trim();
+  
+  if (!email || !password) {
+    toast("Please enter email and password");
+    return;
+  }
+  
+  try {
+    if (isSignupMode) {
+      await signUp(email, password);
+      toast("Account created! Please log in.");
+      isSignupMode = false;
+      document.getElementById("authTitle").textContent = "Sign In";
+      document.getElementById("authSubmit").textContent = "Sign In";
+    } else {
+      await signIn(email, password);
+      toast("Logged in successfully!");
+      hideAuthModal();
+      document.getElementById("authEmail").value = "";
+      document.getElementById("authPassword").value = "";
+      // Refresh app with new user
+      window.location.reload();
+    }
+  } catch (error) {
+    toast("Auth error: " + error.message);
+  }
+};
+
 // Wait for Supabase to be initialized, then start app
 async function waitForSupabase(maxRetries = 50) {
   for (let i = 0; i < maxRetries; i++) {
@@ -409,7 +460,23 @@ async function waitForSupabase(maxRetries = 50) {
     await waitForSupabase();
     
     const user = await getCurrentUser();
-    const displayName = user ? await getUserDisplayName() : "Guest";
+    
+    // If no user, show auth modal
+    if (!user) {
+      console.log("No user logged in - showing auth modal");
+      showAuthModal();
+      
+      // Still load basic UI
+      const now = new Date();
+      setText("dateLabel", now.toLocaleDateString("en-IN", {weekday:"long", day:"numeric", month:"long", year:"numeric"}).toUpperCase());
+      setText("greeting", `Good ${now.getHours()<12?"morning":now.getHours()<18?"afternoon":"evening"}, Guest 👋`);
+      setText("sidebarTip", MOTIVATIONS[now.getDate()%MOTIVATIONS.length][0]);
+      updatePreview();
+      renderAll();
+      return;
+    }
+    
+    const displayName = await getUserDisplayName();
     const now = new Date();
     
     setText("dateLabel", now.toLocaleDateString("en-IN", {weekday:"long", day:"numeric", month:"long", year:"numeric"}).toUpperCase());
@@ -417,19 +484,17 @@ async function waitForSupabase(maxRetries = 50) {
     setText("sidebarTip", MOTIVATIONS[now.getDate()%MOTIVATIONS.length][0]);
     
     // Load user's families and set first one as current
-    if (user) {
-      try {
-        const families = await loadUserFamilies();
-        if (families.length > 0) {
-          setCurrentFamily(families[0].id);
-          const todayLog = await loadTodayLog();
-          if (todayLog) {
-            data.today = todayLog;
-          }
+    try {
+      const families = await loadUserFamilies();
+      if (families.length > 0) {
+        setCurrentFamily(families[0].id);
+        const todayLog = await loadTodayLog();
+        if (todayLog) {
+          data.today = todayLog;
         }
-      } catch (familyError) {
-        console.warn("Could not load families:", familyError.message);
       }
+    } catch (familyError) {
+      console.warn("Could not load families:", familyError.message);
     }
     
     updatePreview();
