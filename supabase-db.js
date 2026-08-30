@@ -30,12 +30,19 @@ async function restCall(method, endpoint, body = null) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1${endpoint}`, options);
   
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ message: res.statusText }));
+    const text = await res.text();
+    let error;
+    try {
+      error = JSON.parse(text);
+    } catch {
+      error = { message: text || res.statusText };
+    }
     throw new Error(error.message || `HTTP ${res.status}`);
   }
   
-  if (res.status === 204) return null; // No content
-  return res.json();
+  const text = await res.text();
+  if (!text || text.length === 0) return null;
+  return JSON.parse(text);
 }
 
 // Save daily log
@@ -59,8 +66,17 @@ export async function saveDailyLog(logData) {
     sleep_hrs: logData.sleep || 0
   };
   
-  // Upsert via REST API
-  await restCall("POST", "/daily_logs?on_conflict=family_id,user_id,log_date", body);
+  // Try INSERT, if conflict update
+  try {
+    await restCall("POST", "/daily_logs", body);
+  } catch (e) {
+    if (e.message.includes("duplicate")) {
+      // Update existing record
+      await restCall("PATCH", `/daily_logs?family_id=eq.${currentFamilyId}&user_id=eq.${userId}&log_date=eq.${logDate}`, body);
+    } else {
+      throw e;
+    }
+  }
 }
 
 // Load today's log
