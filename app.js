@@ -91,7 +91,7 @@ async function save(){
         data.today = freshLog;
         await saveDailyLog(data.today);
       }
-    } catch retryError) {
+    } catch retryErr) {
       toast("Error saving data: " + error.message);
     }
   }
