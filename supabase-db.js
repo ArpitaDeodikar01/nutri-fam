@@ -1,10 +1,6 @@
-// Supabase database operations using REST API directly
-// Avoids header issues with JS library
+// Supabase database operations using SDK
 
 import { getUserId } from "./auth.js";
-
-const SUPABASE_URL = "https://bosfhbglpanubtqrrjxt.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJvc2ZoYmdscGFudWJ0cXJyanh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgwMTM4MTAsImV4cCI6MjEwMzU4OTgxMH0.leuihUcoRVG2Es0b9hcurTWPNzKEvgt-UOQ_ZUAgzmE";
 
 let currentFamilyId = null;
 
@@ -16,46 +12,18 @@ export function getCurrentFamily() {
   return currentFamilyId;
 }
 
-// Helper to make REST API calls
-async function restCall(method, endpoint, body = null) {
-  const headers = {
-    "apikey": SUPABASE_ANON_KEY,
-    "Content-Type": "application/json",
-    "Accept": "application/json"
-  };
-  
-  const options = { method, headers };
-  if (body) options.body = JSON.stringify(body);
-  
-  const res = await fetch(`${SUPABASE_URL}/rest/v1${endpoint}`, options);
-  
-  if (!res.ok) {
-    const text = await res.text();
-    let error;
-    try {
-      error = JSON.parse(text);
-    } catch {
-      error = { message: text || res.statusText };
-    }
-    const err = new Error(error.message || `HTTP ${res.status}`);
-    err.status = res.status;
-    throw err;
-  }
-  
-  const text = await res.text();
-  if (!text || text.length === 0) return null;
-  return JSON.parse(text);
-}
-
 // Save daily log
 export async function saveDailyLog(logData) {
+  const supabase = window.supabaseClient;
+  if (!supabase) throw new Error("Supabase not initialized");
+  
   const userId = getUserId();
   if (!userId) throw new Error("User not authenticated");
   if (!currentFamilyId) throw new Error("No family selected");
   
   const logDate = new Date().toISOString().slice(0, 10);
   
-  const body = {
+  const { error } = await supabase.from("daily_logs").upsert({
     family_id: currentFamilyId,
     user_id: userId,
     log_date: logDate,
@@ -66,74 +34,65 @@ export async function saveDailyLog(logData) {
     fats_g: logData.nutrition?.fats || 0,
     water_ml: logData.water || 0,
     sleep_hrs: logData.sleep || 0
-  };
+  }, { onConflict: "family_id,user_id,log_date" });
   
-  try {
-    // Try PATCH (update) first — will create if doesn't exist
-    await restCall("PATCH", `/daily_logs?family_id=eq.${currentFamilyId}&user_id=eq.${userId}&log_date=eq.${logDate}`, body);
-  } catch (e) {
-    // If PATCH fails (no row found), INSERT new row
-    if (e.status === 404 || e.message.includes("No rows updated")) {
-      await restCall("POST", "/daily_logs?select=*", body);
-    } else {
-      throw e;
-    }
-  }
+  if (error) throw error;
 }
 
 // Load today's log
 export async function loadTodayLog() {
+  const supabase = window.supabaseClient;
+  if (!supabase) throw new Error("Supabase not initialized");
+  
   const userId = getUserId();
   if (!userId) return null;
   if (!currentFamilyId) return null;
   
   const logDate = new Date().toISOString().slice(0, 10);
   
-  try {
-    const endpoint = `/daily_logs?family_id=eq.${currentFamilyId}&user_id=eq.${userId}&log_date=eq.${logDate}`;
-    const data = await restCall("GET", endpoint);
-    if (!data || data.length === 0) return null;
-    
-    const log = data[0];
-    return {
-      water: log.water_ml,
-      activities: log.activity || [],
-      nutrition: {
-        protein: log.protein_g,
-        fibre: log.fibre_g,
-        carbs: log.carbs_g,
-        fats: log.fats_g
-      },
-      sleep: log.sleep_hrs,
-      meals: []
-    };
-  } catch (e) {
-    if (e.message.includes("400")) return null;
-    throw e;
-  }
+  const { data } = await supabase.from("daily_logs").select("*")
+    .eq("family_id", currentFamilyId)
+    .eq("user_id", userId)
+    .eq("log_date", logDate)
+    .maybeSingle();
+  
+  if (!data) return null;
+  
+  return {
+    water: data.water_ml,
+    activities: data.activity || [],
+    nutrition: {
+      protein: data.protein_g,
+      fibre: data.fibre_g,
+      carbs: data.carbs_g,
+      fats: data.fats_g
+    },
+    sleep: data.sleep_hrs,
+    meals: []
+  };
 }
 
 // Load leaderboard
 export async function loadFamilyLeaderboard() {
+  const supabase = window.supabaseClient;
+  if (!supabase) throw new Error("Supabase not initialized");
   if (!currentFamilyId) return [];
   
   const logDate = new Date().toISOString().slice(0, 10);
   
-  const logs = await restCall("GET", `/daily_logs?family_id=eq.${currentFamilyId}&log_date=eq.${logDate}`);
+  const { data: logs } = await supabase.from("daily_logs").select("*")
+    .eq("family_id", currentFamilyId)
+    .eq("log_date", logDate);
   
-  // Fetch family members
-  const members = await restCall("GET", `/family_members?family_id=eq.${currentFamilyId}`);
+  const { data: members } = await supabase.from("family_members").select("user_id, display_name")
+    .eq("family_id", currentFamilyId);
   
-  // Create lookup map
-  const memberMap = {};
-  (members || []).forEach(m => {
-    memberMap[m.user_id] = m.display_name;
-  });
+  const nameMap = Object.fromEntries((members || []).map(m => [m.user_id, m.display_name]));
   
   return (logs || []).map(log => ({
     userId: log.user_id,
-    name: memberMap[log.user_id] || log.user_id,
-    initials: (memberMap[log.user_id] || log.user_id)[0].toUpperCase(),
+    name: nameMap[log.user_id] || log.user_id,
+    initials: (nameMap[log.user_id] || log.user_id)[0].toUpperCase(),
     activity: log.activity || [],
     nutrition: {
       protein: log.protein_g,
@@ -149,71 +108,70 @@ export async function loadFamilyLeaderboard() {
 
 // Create family
 export async function createFamily(familyName) {
+  const supabase = window.supabaseClient;
+  if (!supabase) throw new Error("Supabase not initialized");
+  
   const userId = getUserId();
   if (!userId) throw new Error("User not authenticated");
   
-  const family = await restCall("POST", "/families?select=*", {
+  const { data, error } = await supabase.from("families").insert({
     name: familyName,
     created_by: userId
-  });
+  }).select().single();
   
-  if (!family || !family.id) {
-    throw new Error("Failed to create family - no ID returned");
-  }
+  if (error) throw error;
   
-  // Add creator as member
-  await restCall("POST", "/family_members", {
-    family_id: family.id,
+  await supabase.from("family_members").insert({
+    family_id: data.id,
     user_id: userId,
     display_name: await getUserDisplayName()
   });
   
-  setCurrentFamily(family.id);
-  return family;
+  setCurrentFamily(data.id);
+  return data;
 }
 
 // Join family via invite token
 export async function joinFamilyByToken(token) {
+  const supabase = window.supabaseClient;
+  if (!supabase) throw new Error("Supabase not initialized");
+  
   const userId = getUserId();
   if (!userId) throw new Error("User not authenticated");
   
-  // Find family by token
-  const encoded = encodeURIComponent(`invite_token=eq.${token}`);
-  const families = await restCall("GET", `/families?${encoded}`);
+  const { data: families, error: familyError } = await supabase.from("families").select("id,name")
+    .eq("invite_token", token)
+    .maybeSingle();
   
-  if (!families || families.length === 0) throw new Error("Family not found");
+  if (familyError) throw familyError;
+  if (!families) throw new Error("Family not found");
   
-  const family = families[0];
+  const { error: memberError } = await supabase.from("family_members").insert({
+    family_id: families.id,
+    user_id: userId,
+    display_name: await getUserDisplayName()
+  });
   
-  // Add user to family
-  try {
-    await restCall("POST", "/family_members", {
-      family_id: family.id,
-      user_id: userId,
-      display_name: await getUserDisplayName()
-    });
-  } catch (e) {
-    if (!e.message.includes("duplicate")) throw e; // Already a member
-  }
+  if (memberError && memberError.code !== "23505") throw memberError;
   
-  setCurrentFamily(family.id);
-  return family;
+  setCurrentFamily(families.id);
+  return families;
 }
 
 // Load user's families
 export async function loadUserFamilies() {
+  const supabase = window.supabaseClient;
+  if (!supabase) throw new Error("Supabase not initialized");
+  
   const userId = getUserId();
   if (!userId) return [];
   
-  const members = await restCall("GET", `/family_members?user_id=eq.${userId}`);
+  const { data, error } = await supabase.from("family_members").select("family_id, families(id,name)")
+    .eq("user_id", userId);
   
-  if (!members || members.length === 0) return [];
+  if (error) throw error;
   
-  // Fetch families
-  const familyIds = members.map(m => m.family_id).join(",");
-  const families = await restCall("GET", `/families?id=in.(${familyIds})`);
-  
-  return families || [];
+  return (data || []).map(row => row.families).filter(f => f);
 }
 
 // Get display name

@@ -16,10 +16,7 @@ import {
   signUp,
   signOut,
   getUserId,
-  getUserDisplayName,
-  enableDemoMode,
-  isDemoMode,
-  disableDemoMode
+  getUserDisplayName
 } from "./auth.js";
 
 // Import scoring functions and config
@@ -87,11 +84,6 @@ let data = structuredClone(defaultData);
 
 async function save(){
   try {
-    // In demo mode, skip saving to Supabase (no-op)
-    if (isDemoMode()) {
-      console.log("Demo mode: skipping save to Supabase");
-      return;
-    }
     await saveDailyLog(data.today);
   } catch (error) {
     console.error("Failed to save daily log:", error);
@@ -431,36 +423,20 @@ document.getElementById("authSubmit").onclick = async () => {
     if (isSignupMode) {
       await signUp(email, password);
       toast("Account created! Logging you in...");
-      // Disable demo mode when signing up with real auth
-      disableDemoMode();
       isSignupMode = false;
       document.getElementById("authTitle").textContent = "Sign In";
       document.getElementById("authSubmit").textContent = "Sign In";
     } else {
       await signIn(email, password);
-      // Disable demo mode when signing in with real auth
-      disableDemoMode();
       toast("Logged in successfully!");
       hideAuthModal();
       document.getElementById("authEmail").value = "";
       document.getElementById("authPassword").value = "";
-      // Refresh app with new user
       window.location.reload();
     }
   } catch (error) {
     toast("Auth error: " + error.message);
   }
-};
-
-// Demo mode button handler
-document.getElementById("demoModeBtn").onclick = async () => {
-  enableDemoMode();
-  toast("Demo mode enabled 🎬");
-  hideAuthModal();
-  document.getElementById("authEmail").value = "";
-  document.getElementById("authPassword").value = "";
-  // Refresh to initialize with demo user
-  window.location.reload();
 };
 
 // Wait for Supabase to be initialized, then start app
@@ -506,24 +482,18 @@ async function waitForSupabase(maxRetries = 50) {
     setText("greeting", `Good ${now.getHours()<12?"morning":now.getHours()<18?"afternoon":"evening"}, ${displayName} 👋`);
     setText("sidebarTip", MOTIVATIONS[now.getDate()%MOTIVATIONS.length][0]);
     
-    // For demo mode, use the default family data
-    if (isDemoMode()) {
-      console.log("✓ Demo mode active - using sample data");
-      // Keep the default family data already loaded
-    } else {
-      // Load user's families and set first one as current from Supabase
-      try {
-        const families = await loadUserFamilies();
-        if (families.length > 0) {
-          setCurrentFamily(families[0].id);
-          const todayLog = await loadTodayLog();
-          if (todayLog) {
-            data.today = todayLog;
-          }
+    // Load user's families and set first one as current
+    try {
+      const families = await loadUserFamilies();
+      if (families.length > 0) {
+        setCurrentFamily(families[0].id);
+        const todayLog = await loadTodayLog();
+        if (todayLog) {
+          data.today = todayLog;
         }
-      } catch (familyError) {
-        console.warn("Could not load families:", familyError.message);
       }
+    } catch (familyError) {
+      console.warn("Could not load families:", familyError.message);
     }
     
     updatePreview();
