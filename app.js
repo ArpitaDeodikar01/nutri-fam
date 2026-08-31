@@ -328,13 +328,13 @@ document.getElementById("createFamilySubmit").onclick=async ()=>{
   
   try {
     const family = await createFamily(familyName);
-    console.log("[FAMILY] Created family:", family.id);
+    console.log("[FAMILY] Created family:", family.id, "with token:", family.invite_token);
     toast("Family created!");
     familyModal.classList.add("hidden");
     document.getElementById("familyNameInput").value="";
     setCurrentFamily(family.id);
     console.log("[FAMILY] Set current family to:", family.id);
-    generateInviteLink();
+    generateInviteLink(family.invite_token);
     renderAll();
   } catch (error) {
     console.error("Failed to create family:", error);
@@ -342,10 +342,10 @@ document.getElementById("createFamilySubmit").onclick=async ()=>{
   }
 };
 
-function generateInviteLink(){
-  const familyId = getCurrentFamily();
-  if(!familyId)return;
-  const link=`${window.location.origin}${window.location.pathname}?join=${familyId}`;
+function generateInviteLink(inviteToken){
+  if(!inviteToken)return;
+  const link=`${window.location.origin}${window.location.pathname}?join=${inviteToken}`;
+  console.log("[INVITE] Generated link:", link);
   document.getElementById("familyLinkPanel").style.display="block";
   document.getElementById("inviteLinkDisplay").textContent=link;
   document.getElementById("whatsappBtn").onclick=()=>{

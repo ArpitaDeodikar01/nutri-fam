@@ -117,7 +117,7 @@ export async function createFamily(familyName) {
   const { data, error } = await supabase.from("families").insert({
     name: familyName,
     created_by: userId
-  }).select().single();
+  }).select("id, name, invite_token").single();
   
   if (error) throw error;
   
