@@ -280,13 +280,6 @@ function renderProgress(){
 }
 
 function renderAll(){
-  // Update current user's entry in family list with today's data
-  const userIdx = data.family.findIndex(m => m.name === data.profile.name);
-  if(userIdx >= 0) {
-    data.family[userIdx] = { ...data.family[userIdx], ...data.today };
-    data.family[userIdx].score = totalScore(data.family[userIdx]);
-  }
-  
   renderDashboard();
   renderMeals();
   renderFamily();
