@@ -7,7 +7,12 @@ import {
   joinFamilyByToken,
   getCurrentFamily,
   setCurrentFamily,
-  loadUserFamilies
+  loadUserFamilies,
+  getPendingRequests,
+  approveMember,
+  declineMember,
+  isFamilyAdmin,
+  getMyMembershipStatus
 } from "./supabase-db.js";
 
 import {
@@ -79,7 +84,16 @@ async function save(){
     await saveDailyLog(data.today);
   } catch (error) {
     console.error("Failed to save daily log:", error);
-    toast("Error saving data: " + error.message);
+    // Try refreshing data from Supabase and retry once
+    try {
+      const freshLog = await loadTodayLog();
+      if (freshLog) {
+        data.today = freshLog;
+        await saveDailyLog(data.today);
+      }
+    } catch retryError) {
+      toast("Error saving data: " + error.message);
+    }
   }
 }
 
@@ -210,36 +224,34 @@ function renderLeaderboard(){
     try {
       const logs = await loadFamilyLeaderboard();
       const userId = getUserId();
-      const viewerName = userId;
       
-      // Calculate scores for each member
-      const members = logs.map(log => ({
-        ...log,
-        score: totalScore(log)
-      }));
+      if (!logs || logs.length === 0) {
+        document.getElementById("leaderboardContainer").innerHTML = 
+          '<div style="text-align:center;padding:40px;color:var(--muted)"><h3>No data yet</h3><p>Start logging to see the leaderboard.</p></div>';
+        return;
+      }
       
-      // Sort by score descending
-      const sorted = members.sort((a, b) => b.score - a.score);
-      const leaderScore = sorted[0]?.score || 0;
-      
-      const html = sorted.map((x, i) => {
-        const breakdown = scoreBreakdown(x);
+      const html = logs.map((x, i) => {
         const isViewer = x.userId === userId;
-        const motivational = isViewer ? motivationalMessage(x, leaderScore, true) : '';
         
         return `
     <div class="leaderboard-row">
-      <span class="leaderboard-rank">${i===0?"👑":["🥈","🥉",...Array(sorted.length-2).fill(i+1)][i]}</span>
+      <span class="leaderboard-rank">${i===0?"👑":(i+1)}</span>
       <div class="leaderboard-member">
-        <span class="leaderboard-member-name">${x.name}</span>
-        <span class="leaderboard-member-stats">🔥${breakdown.activity}|🍱${breakdown.nutrition}|💧${breakdown.water}|😴${breakdown.sleep}</span>
-        ${motivational ? `<span class="leaderboard-motivational">${motivational}</span>` : ''}
+        <span class="leaderboard-member-name">${x.name}${x.isAdmin?" (Admin)":""}</span>
+        <span class="leaderboard-member-stats">📅 ${x.daysLogged} days logged</span>
       </div>
-      <span class="leaderboard-score">${x.score}</span>
+      <span class="leaderboard-score">${x.total} pts</span>
     </div>
   `}).join("");
       
-      document.getElementById("leaderboardContainer").innerHTML = html;
+      // If there's a pending requests section, append leaderboard to it
+      const existingPending = document.getElementById("leaderboardRows");
+      if (existingPending) {
+        existingPending.innerHTML = html;
+      } else {
+        document.getElementById("leaderboardContainer").innerHTML = html;
+      }
     } catch (error) {
       console.error("Failed to load leaderboard:", error);
       document.getElementById("leaderboardContainer").innerHTML = `<div style="color: var(--muted); font-size: 12px;">Error loading leaderboard: ${error.message}</div>`;
@@ -263,7 +275,55 @@ function updatePreview(){
 }
 
 function renderFamily(){
-  renderLeaderboard();
+  (async () => {
+    const familyId = getCurrentFamily();
+    if (!familyId) {
+      document.getElementById("leaderboardContainer").innerHTML = 
+        '<div style="text-align:center;padding:40px;color:var(--muted)"><h3>No family yet</h3><p>Create or join a family to get started.</p></div>';
+      return;
+    }
+    
+    // Check if user is admin and has pending requests
+    const admin = await isFamilyAdmin(familyId);
+    if (admin) {
+      const requests = await getPendingRequests(familyId);
+      if (requests.length > 0) {
+        const requestsHTML = requests.map(r => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:#f5f7f4;border-radius:8px;margin-bottom:8px">
+            <div><strong>${r.display_name}</strong><br><small style="color:var(--muted)">${new Date(r.created_at).toLocaleDateString()}</small></div>
+            <div style="display:flex;gap:8px">
+              <button onclick="approveRequest('${r.user_id}')" style="background:green;color:white;border:none;padding:6px 12px;border-radius:6px">✓</button>
+              <button onclick="declineRequest('${r.user_id}')" style="background:red;color:white;border:none;padding:6px 12px;border-radius:6px">✗</button>
+            </div>
+          </div>
+        `).join("");
+        
+        document.getElementById("leaderboardContainer").innerHTML = `
+          <div style="margin-bottom:20px;padding:16px;background:#fff3cd;border-radius:10px">
+            <h4 style="margin:0 0 12px 0">⏳ Pending Requests</h4>
+            ${requestsHTML}
+          </div>
+          <div id="leaderboardRows"></div>
+        `;
+        
+        // Make functions available globally
+        window.approveRequest = async (userId) => {
+          await approveMember(familyId, userId);
+          renderFamily();
+        };
+        window.declineRequest = async (userId) => {
+          await declineMember(familyId, userId);
+          renderFamily();
+        };
+        
+        // Load leaderboard below requests
+        renderLeaderboard();
+        return;
+      }
+    }
+    
+    renderLeaderboard();
+  })();
 }
 
 function renderProgress(){
@@ -493,35 +553,60 @@ async function waitForSupabase(maxRetries = 50) {
     // Load user's families from DB (source of truth)
     try {
       const families = await loadUserFamilies();
+      
+      // Populate family switcher
+      const familySelect = document.getElementById("familySelect");
+      familySelect.innerHTML = families.length ? families.map(f => 
+        `<option value="${f.id}">${f.name}</option>`
+      ).join("") : '<option value="">No family</option>';
+      
       if (families.length > 0) {
         const familyId = families[0].id;
         setCurrentFamily(familyId);
         console.log("[FAMILY] Loaded family on page load:", familyId);
-        const todayLog = await loadTodayLog();
-        if (todayLog) {
-          data.today = todayLog;
-        }
-      } else {
-        console.log("[FAMILY] No families found for user");
         
-        // Check if there's a pending invite token — join family if so
+        // Check if user is pending
+        const membership = await getMyMembershipStatus(familyId);
+        if (membership?.status === "pending") {
+          console.log("[FAMILY] User is pending approval");
+          document.getElementById("leaderboardContainer").innerHTML = 
+            '<div style="text-align:center;padding:40px;color:var(--muted)"><h3>⏳ Waiting for approval</h3><p>The family creator will approve your request soon.</p></div>';
+          renderAll();
+          return;
+        }
+        
+        // Check for pending invite
         const pendingToken = sessionStorage.getItem("pendingInviteToken");
         if (pendingToken) {
-          console.log("[INVITE] Processing pending invite token:", pendingToken);
           try {
             const family = await joinFamilyByToken(pendingToken);
-            console.log("[INVITE] Successfully joined family:", family.id);
-            setCurrentFamily(family.id);
-            console.log("[INVITE] Set current family to:", family.id);
             sessionStorage.removeItem("pendingInviteToken");
-            toast("Joined family!");
-            const todayLog = await loadTodayLog();
-            if (todayLog) {
-              data.today = todayLog;
-            }
+            setCurrentFamily(family.id);
+            document.getElementById("familySelect").innerHTML += `<option value="${family.id}">${family.name}</option>`;
+            document.getElementById("familySelect").value = family.id;
+            toast("Joined family! Waiting for approval.");
+            renderAll();
+            return;
           } catch (joinError) {
-            console.error("[INVITE] Failed to join family:", joinError);
             toast("Error joining family: " + joinError.message);
+          }
+        }
+        
+        const todayLog = await loadTodayLog();
+        if (todayLog) data.today = todayLog;
+      } else {
+        console.log("[FAMILY] No families found for user");
+        const pendingToken = sessionStorage.getItem("pendingInviteToken");
+        if (pendingToken) {
+          try {
+            const family = await joinFamilyByToken(pendingToken);
+            sessionStorage.removeItem("pendingInviteToken");
+            setCurrentFamily(family.id);
+            toast("Joined! Waiting for approval.");
+            renderAll();
+            return;
+          } catch (joinError) {
+            toast("Error: " + joinError.message);
           }
         }
       }
@@ -541,3 +626,24 @@ async function waitForSupabase(maxRetries = 50) {
     renderAll();
   }
 })();
+
+// Family switcher
+document.getElementById("familySelect").onchange = async (e) => {
+  const familyId = e.target.value;
+  if (!familyId) {
+    setCurrentFamily(null);
+    renderAll();
+    return;
+  }
+  setCurrentFamily(familyId);
+  // Check membership status
+  const membership = await getMyMembershipStatus(familyId);
+  if (membership?.status === "pending") {
+    document.getElementById("leaderboardContainer").innerHTML = 
+      '<div style="text-align:center;padding:40px;color:var(--muted)"><h3>⏳ Waiting for approval</h3><p>The family creator will approve your request soon.</p></div>';
+  } else {
+    const todayLog = await loadTodayLog();
+    if (todayLog) data.today = todayLog;
+    renderAll();
+  }
+};
