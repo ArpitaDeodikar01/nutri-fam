@@ -354,32 +354,19 @@ function generateInviteLink(){
   };
 }
 
-// Handle invite link — auto-join family if logged in
-const params=new URLSearchParams(window.location.search);
-const joinToken=params.get("join");
+// Handle invite link — store token and join after auth
+const params = new URLSearchParams(window.location.search);
+const joinToken = params.get("join");
 
-if(joinToken) {
-  (async () => {
-    try {
-      const user = await getCurrentUser();
-      if (!user) {
-        console.log("User needs to log in first");
-        return;
-      }
-      
-      console.log("[FAMILY] Attempting to join with token:", joinToken);
-      const family = await joinFamilyByToken(joinToken);
-      console.log("[FAMILY] Successfully joined family:", family.id);
-      toast("Joined family!");
-      setCurrentFamily(family.id);
-      console.log("[FAMILY] Set current family to:", family.id);
-      showView("family");
-      renderAll();
-    } catch (error) {
-      console.error("Failed to join family:", error);
-      toast("Error joining family: " + error.message);
-    }
-  })();
+if (joinToken) {
+  console.log("[INVITE] Token in URL:", joinToken);
+  sessionStorage.setItem("pendingInviteToken", joinToken);
+}
+
+// Check if there's a pending invite token from a previous redirect
+const pendingToken = sessionStorage.getItem("pendingInviteToken");
+if (pendingToken) {
+  console.log("[INVITE] Found pending token in sessionStorage:", pendingToken);
 }
 
 document.getElementById("profileBtn").onclick=async ()=>{
@@ -516,6 +503,27 @@ async function waitForSupabase(maxRetries = 50) {
         }
       } else {
         console.log("[FAMILY] No families found for user");
+        
+        // Check if there's a pending invite token — join family if so
+        const pendingToken = sessionStorage.getItem("pendingInviteToken");
+        if (pendingToken) {
+          console.log("[INVITE] Processing pending invite token:", pendingToken);
+          try {
+            const family = await joinFamilyByToken(pendingToken);
+            console.log("[INVITE] Successfully joined family:", family.id);
+            setCurrentFamily(family.id);
+            console.log("[INVITE] Set current family to:", family.id);
+            sessionStorage.removeItem("pendingInviteToken");
+            toast("Joined family!");
+            const todayLog = await loadTodayLog();
+            if (todayLog) {
+              data.today = todayLog;
+            }
+          } catch (joinError) {
+            console.error("[INVITE] Failed to join family:", joinError);
+            toast("Error joining family: " + joinError.message);
+          }
+        }
       }
     } catch (familyError) {
       console.warn("Could not load families:", familyError.message);

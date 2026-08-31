@@ -139,22 +139,39 @@ export async function joinFamilyByToken(token) {
   const userId = getUserId();
   if (!userId) throw new Error("User not authenticated");
   
+  console.log("[JOIN] Looking up family with token:", token);
   const { data: families, error: familyError } = await supabase.from("families").select("id,name")
     .eq("invite_token", token)
     .maybeSingle();
   
-  if (familyError) throw familyError;
-  if (!families) throw new Error("Family not found");
+  if (familyError) {
+    console.error("[JOIN] Family lookup error:", familyError);
+    throw familyError;
+  }
+  if (!families) {
+    console.error("[JOIN] Family not found for token:", token);
+    throw new Error("Family not found");
+  }
   
+  console.log("[JOIN] Found family:", families.id, "- inserting user...");
   const { error: memberError } = await supabase.from("family_members").insert({
     family_id: families.id,
     user_id: userId,
     display_name: await getUserDisplayName()
   });
   
-  if (memberError && memberError.code !== "23505") throw memberError;
+  if (memberError) {
+    if (memberError.code !== "23505") {
+      console.error("[JOIN] Insert error:", memberError);
+      throw memberError;
+    }
+    console.log("[JOIN] User already member (duplicate key ignored)");
+  } else {
+    console.log("[JOIN] Successfully inserted user into family_members");
+  }
   
   setCurrentFamily(families.id);
+  console.log("[JOIN] Set currentFamilyId to:", families.id);
   return families;
 }
 
