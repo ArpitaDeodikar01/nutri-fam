@@ -67,17 +67,9 @@ const MOTIVATIONS = [
 ];
 
 const defaultData = {
-  profile: {name:"Arpita"},
-  familyId: "",
-  families: {}, // {token: {name, members: [], createdBy}}
+  profile: {name:"User"},
   today: {water:0, activities:[], nutrition:{protein:0,fibre:0,carbs:0,fats:0}, sleep:0, shake:false, shakeProtein:26, meals:[]},
-  history: {},
-  family: [
-    {name:"Arpita", initials:"A", activity:[], nutrition:{protein:0,fibre:0,carbs:0,fats:0}, water:0, sleep:0, status:"You"},
-    {name:"Mom", initials:"M", activity:[{type:"walking",value:8450}], nutrition:{protein:55,fibre:20,carbs:180,fats:45}, water:2000, sleep:7.5, status:"Great day"},
-    {name:"Dad", initials:"D", activity:[{type:"running",value:4}], nutrition:{protein:70,fibre:28,carbs:260,fats:65}, water:2000, sleep:8, status:"Strong"},
-    {name:"Brother", initials:"B", activity:[{type:"walking",value:6210}], nutrition:{protein:45,fibre:18,carbs:150,fats:40}, water:1200, sleep:6, status:"Keep going"}
-  ]
+  history: {}
 };
 
 let data = structuredClone(defaultData);
@@ -105,15 +97,6 @@ function getColorStatus(value, max, type){
   if(p >= 1) return {emoji:"🟢", label:"Done"};
   if(p >= 0.5) return {emoji:"🟠", label:"Halfway"};
   return {emoji:"🔴", label:"Low"};
-}
-
-// Recalculate scores for all family members from their data
-function recalculateAllScores() {
-  data.family.forEach(member => {
-    member.score = totalScore(member);
-  });
-  // Sort by score descending
-  data.family.sort((a, b) => b.score - a.score);
 }
 
 function totals(){
@@ -199,10 +182,26 @@ function renderDashboard(){
 }
 
 function renderMiniFamily(){
-  recalculateAllScores();
-  const sorted=[...data.family].sort((a,b)=>b.score-a.score);
-  document.getElementById("miniFamily").innerHTML=`<div class="family-mini">${sorted.slice(0,4).map((x,i)=>`
-    <div class="family-row"><div class="mini-avatar">${x.initials}</div><div class="family-info"><strong>${x.name}${i===0?" 👑":""}</strong><small>${x.status}</small></div><span class="score">${x.score} pts</span></div>`).join("")}</div>`;
+  if (!getCurrentFamily()) {
+    document.getElementById("miniFamily").innerHTML = `<div class="family-mini"><p style="color:var(--muted);font-size:12px;text-align:center">Create or join a family to see the leaderboard</p></div>`;
+    return;
+  }
+  
+  (async () => {
+    try {
+      const logs = await loadFamilyLeaderboard();
+      if (!logs || logs.length === 0) {
+        document.getElementById("miniFamily").innerHTML = `<div class="family-mini"><p style="color:var(--muted);font-size:12px;text-align:center">No family members yet</p></div>`;
+        return;
+      }
+      
+      const sorted = logs.sort((a, b) => (b.score || 0) - (a.score || 0)).slice(0, 4);
+      document.getElementById("miniFamily").innerHTML = `<div class="family-mini">${sorted.map((x, i) => `
+        <div class="family-row"><div class="mini-avatar">${x.initials}</div><div class="family-info"><strong>${x.name}${i === 0 ? " 👑" : ""}</strong><small>${totalScore(x)} pts</small></div></div>`).join("")}</div>`;
+    } catch (e) {
+      console.error("Failed to load mini family:", e);
+    }
+  })();
 }
 
 function renderLeaderboard(){
@@ -264,7 +263,6 @@ function updatePreview(){
 }
 
 function renderFamily(){
-  recalculateAllScores();
   renderLeaderboard();
 }
 
@@ -337,10 +335,12 @@ document.getElementById("createFamilySubmit").onclick=async ()=>{
   
   try {
     const family = await createFamily(familyName);
+    console.log("[FAMILY] Created family:", family.id);
     toast("Family created!");
     familyModal.classList.add("hidden");
     document.getElementById("familyNameInput").value="";
     setCurrentFamily(family.id);
+    console.log("[FAMILY] Set current family to:", family.id);
     generateInviteLink();
     renderAll();
   } catch (error) {
@@ -371,13 +371,15 @@ if(joinToken) {
       const user = await getCurrentUser();
       if (!user) {
         console.log("User needs to log in first");
-        // In production, redirect to login, then redirect back with token
         return;
       }
       
+      console.log("[FAMILY] Attempting to join with token:", joinToken);
       const family = await joinFamilyByToken(joinToken);
+      console.log("[FAMILY] Successfully joined family:", family.id);
       toast("Joined family!");
       setCurrentFamily(family.id);
+      console.log("[FAMILY] Set current family to:", family.id);
       showView("family");
       renderAll();
     } catch (error) {
@@ -387,7 +389,30 @@ if(joinToken) {
   })();
 }
 
-document.getElementById("profileBtn").onclick=()=>toast("Profile settings coming in the next version.");
+document.getElementById("profileBtn").onclick=async ()=>{
+  const user = await getCurrentUser();
+  if (user) {
+    document.getElementById("profileEmail").textContent = user.email;
+    document.getElementById("profileAvatar").textContent = user.email[0].toUpperCase();
+    document.getElementById("profileName").textContent = user.email.split("@")[0];
+    document.getElementById("profileModal").classList.remove("hidden");
+  }
+};
+
+document.getElementById("closeProfileModal").onclick=()=>{
+  document.getElementById("profileModal").classList.add("hidden");
+};
+
+document.getElementById("logoutBtn").onclick=async ()=>{
+  try {
+    await signOut();
+    toast("Logged out successfully!");
+    document.getElementById("profileModal").classList.add("hidden");
+    window.location.reload();
+  } catch (error) {
+    toast("Logout failed: " + error.message);
+  }
+};
 
 // Auth modal handlers
 let isSignupMode = false;
@@ -479,18 +504,25 @@ async function waitForSupabase(maxRetries = 50) {
     const now = new Date();
     
     setText("dateLabel", now.toLocaleDateString("en-IN", {weekday:"long", day:"numeric", month:"long", year:"numeric"}).toUpperCase());
-    setText("greeting", `Good ${now.getHours()<12?"morning":now.getHours()<18?"afternoon":"evening"}, ${displayName} 👋`);
+    const userName = displayName || user.email?.split("@")[0] || "User";
+    setText("greeting", `Good ${now.getHours()<12?"morning":now.getHours()<18?"afternoon":"evening"}, ${userName} 👋`);
+    setText("profileAvatar", userName[0].toUpperCase());
+    setText("profileName", userName);
     setText("sidebarTip", MOTIVATIONS[now.getDate()%MOTIVATIONS.length][0]);
     
-    // Load user's families and set first one as current
+    // Load user's families from DB (source of truth)
     try {
       const families = await loadUserFamilies();
       if (families.length > 0) {
-        setCurrentFamily(families[0].id);
+        const familyId = families[0].id;
+        setCurrentFamily(familyId);
+        console.log("[FAMILY] Loaded family on page load:", familyId);
         const todayLog = await loadTodayLog();
         if (todayLog) {
           data.today = todayLog;
         }
+      } else {
+        console.log("[FAMILY] No families found for user");
       }
     } catch (familyError) {
       console.warn("Could not load families:", familyError.message);
