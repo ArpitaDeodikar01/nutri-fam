@@ -25,7 +25,8 @@ import {
   getUserId,
   getUserDisplayName,
   enableDemoMode,
-  isDemoMode
+  isDemoMode,
+  setCurrentUser
 } from "./auth.js";
 
 // Import scoring functions and config
@@ -665,8 +666,12 @@ async function waitForSupabase(maxRetries = 50) {
     
     const user = sbUser || await getCurrentUser();
     console.log('[AUTH_CHECK] Final user object:', user ? { id: user.id, email: user.email } : null);
-    console.log('[AUTH_CHECK] getUserId() returns:', getUserId());
-    console.log('[AUTH_CHECK] isDemoMode():', isDemoMode());
+    
+    // CRITICAL: Explicitly set currentUser so getUserId() can access it
+    if (user) {
+      setCurrentUser(user);
+      console.log('[AUTH_CHECK] Called setCurrentUser(), getUserId() should now return:', getUserId());
+    }
     
     // If no user, show auth modal
     if (!user) {

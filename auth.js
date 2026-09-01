@@ -2,6 +2,12 @@
 
 let currentUser = null;
 
+// Setter to explicitly update currentUser from app.js
+export function setCurrentUser(user) {
+  currentUser = user;
+  console.log('[AUTH] setCurrentUser() called, currentUser now:', user ? { id: user.id, email: user.email } : null);
+}
+
 export async function getCurrentUser() {
   // If in demo mode, return demo user
   if (demoMode && demoUserId) {
@@ -31,6 +37,8 @@ export async function signUp(email, password) {
   
   const { data, error } = await supabase.auth.signUp({ email, password });
   if (error) throw error;
+  currentUser = data.user;
+  console.log('[AUTH] signUp successful, currentUser set to:', { id: currentUser?.id, email: currentUser?.email });
   return data.user;
 }
 
@@ -41,6 +49,7 @@ export async function signIn(email, password) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw error;
   currentUser = data.user;
+  console.log('[AUTH] signIn successful, currentUser set to:', { id: currentUser?.id, email: currentUser?.email });
   return data.user;
 }
 
@@ -51,6 +60,7 @@ export async function signOut() {
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
   currentUser = null;
+  console.log('[AUTH] signOut successful, currentUser cleared');
 }
 
 export function getUserDisplayName() {
