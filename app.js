@@ -21,7 +21,8 @@ import {
   signUp,
   signOut,
   getUserId,
-  getUserDisplayName
+  getUserDisplayName,
+  enableDemoMode
 } from "./auth.js";
 
 // Import scoring functions and config
@@ -91,8 +92,8 @@ async function save(){
         data.today = freshLog;
         await saveDailyLog(data.today);
       }
-    } catch retryErr) {
-      toast("Error saving data: " + error.message);
+    } catch (retryError) {
+      toast("Error saving data: " + retryError.message);
     }
   }
 }
@@ -501,6 +502,18 @@ document.getElementById("authSubmit").onclick = async () => {
     }
   } catch (error) {
     toast("Auth error: " + error.message);
+  }
+};
+
+// Demo mode button handler
+document.getElementById("demoModeBtn").onclick = async () => {
+  try {
+    enableDemoMode();
+    toast("Demo mode activated! Welcome!");
+    hideAuthModal();
+    window.location.reload();
+  } catch (error) {
+    toast("Failed to start demo mode: " + error.message);
   }
 };
 

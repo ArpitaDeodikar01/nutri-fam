@@ -1,6 +1,6 @@
 // Supabase database operations using SDK
 
-import { getUserId } from "./auth.js";
+import { getUserId, isDemoMode } from "./auth.js";
 
 let currentFamilyId = null;
 
@@ -14,6 +14,38 @@ export function getCurrentFamily() {
 
 // Save daily log - merges with existing data to avoid overwriting other fields
 export async function saveDailyLog(logData) {
+  // Demo mode: store in localStorage
+  if (isDemoMode()) {
+    const userId = getUserId();
+    if (!userId) throw new Error("User not authenticated");
+    if (!currentFamilyId) throw new Error("No family selected");
+    
+    const logDate = new Date().toISOString().slice(0, 10);
+    const key = `demo_log_${currentFamilyId}_${userId}_${logDate}`;
+    
+    // Get existing data from localStorage
+    const existingStr = localStorage.getItem(key);
+    const existing = existingStr ? JSON.parse(existingStr) : null;
+    
+    const mergedLog = {
+      family_id: currentFamilyId,
+      user_id: userId,
+      log_date: logDate,
+      activity: existing?.activity || logData.activities || [],
+      protein_g: existing?.protein_g ?? logData.nutrition?.protein ?? 0,
+      fibre_g: existing?.fibre_g ?? logData.nutrition?.fibre ?? 0,
+      carbs_g: existing?.carbs_g ?? logData.nutrition?.carbs ?? 0,
+      fats_g: existing?.fats_g ?? logData.nutrition?.fats ?? 0,
+      water_ml: existing?.water_ml ?? logData.water ?? 0,
+      sleep_hrs: existing?.sleep_hrs ?? logData.sleep ?? 0
+    };
+    
+    localStorage.setItem(key, JSON.stringify(mergedLog));
+    console.log("[DEMO] Saved log to localStorage:", key, mergedLog);
+    return;
+  }
+  
+  // Real mode: use Supabase
   const supabase = window.supabaseClient;
   if (!supabase) throw new Error("Supabase not initialized");
   
@@ -43,8 +75,18 @@ export async function saveDailyLog(logData) {
     sleep_hrs: existing?.sleep_hrs ?? logData.sleep ?? 0
   };
   
-  const { error } = await supabase.from("daily_logs").upsert(mergedLog, { onConflict: "family_id,user_id,log_date" });
-  if (error) throw error;
+  // If row exists, update it; otherwise insert
+  if (existing) {
+    const { error } = await supabase.from("daily_logs")
+      .update(mergedLog)
+      .eq("family_id", currentFamilyId)
+      .eq("user_id", userId)
+      .eq("log_date", logDate);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase.from("daily_logs").insert(mergedLog);
+    if (error) throw error;
+  }
 }
 
 // Helper to update just one category (merge with existing)
@@ -56,6 +98,39 @@ export async function updateCategory(field, value) {
 
 // Load today's log
 export async function loadTodayLog() {
+  // Demo mode: load from localStorage
+  if (isDemoMode()) {
+    const userId = getUserId();
+    if (!userId) return null;
+    if (!currentFamilyId) return null;
+    
+    const logDate = new Date().toISOString().slice(0, 10);
+    const key = `demo_log_${currentFamilyId}_${userId}_${logDate}`;
+    const dataStr = localStorage.getItem(key);
+    
+    if (!dataStr) return null;
+    
+    try {
+      const data = JSON.parse(dataStr);
+      return {
+        water: data.water_ml || 0,
+        activities: data.activity || [],
+        nutrition: {
+          protein: data.protein_g || 0,
+          fibre: data.fibre_g || 0,
+          carbs: data.carbs_g || 0,
+          fats: data.fats_g || 0
+        },
+        sleep: data.sleep_hrs || 0,
+        meals: []
+      };
+    } catch (e) {
+      console.error("[DEMO] Failed to parse localStorage log:", e);
+      return null;
+    }
+  }
+  
+  // Real mode: use Supabase
   const supabase = window.supabaseClient;
   if (!supabase) throw new Error("Supabase not initialized");
   
@@ -89,6 +164,41 @@ export async function loadTodayLog() {
 
 // Load leaderboard (cycle-based cumulative scores)
 export async function loadFamilyLeaderboard() {
+  // Demo mode: return simple demo data
+  if (isDemoMode()) {
+    if (!currentFamilyId) return [];
+    
+    // Simple demo leaderboard
+    return [
+      {
+        userId: getUserId(),
+        name: "Demo User",
+        initials: "DU",
+        activity: 0,
+        nutrition: 0,
+        water: 0,
+        sleep: 0,
+        total: 65,
+        daysLogged: 1,
+        rank: 1,
+        daysRemaining: 29
+      },
+      {
+        userId: "demo-user-2",
+        name: "Demo Family Member",
+        initials: "DF",
+        activity: 0,
+        nutrition: 0,
+        water: 0,
+        sleep: 0,
+        total: 42,
+        daysLogged: 1,
+        rank: 2,
+        daysRemaining: 29
+      }
+    ];
+  }
+  
   const supabase = window.supabaseClient;
   if (!currentFamilyId) return [];
   
@@ -191,6 +301,44 @@ export async function loadFamilyLeaderboard() {
 
 // Create family
 export async function createFamily(familyName) {
+  // Demo mode: create fake family
+  if (isDemoMode()) {
+    const userId = getUserId();
+    if (!userId) throw new Error("User not authenticated");
+    
+    const familyId = "demo-family-" + Math.random().toString(36).substring(2);
+    const inviteToken = Math.random().toString(36).substring(2);
+    
+    // Store family info in localStorage
+    const familyKey = `demo_family_${familyId}`;
+    localStorage.setItem(familyKey, JSON.stringify({
+      id: familyId,
+      name: familyName,
+      invite_token: inviteToken,
+      created_by: userId
+    }));
+    
+    // Store membership
+    const memberKey = `demo_member_${familyId}_${userId}`;
+    localStorage.setItem(memberKey, JSON.stringify({
+      family_id: familyId,
+      user_id: userId,
+      display_name: "Demo User",
+      status: "approved",
+      is_admin: true
+    }));
+    
+    setCurrentFamily(familyId);
+    
+    console.log("[DEMO] Created family:", familyId, "with token:", inviteToken);
+    return {
+      id: familyId,
+      name: familyName,
+      invite_token: inviteToken
+    };
+  }
+  
+  // Real mode: use Supabase
   const supabase = window.supabaseClient;
   if (!supabase) throw new Error("Supabase not initialized");
   
@@ -200,9 +348,12 @@ export async function createFamily(familyName) {
   const { data, error } = await supabase.from("families").insert({
     name: familyName,
     created_by: userId
-  }).select("id, name, invite_token").single();
+  }).select("id, name, invite_token").maybeSingle();
   
   if (error) throw error;
+  if (!data) {
+    throw new Error("Failed to create family - no ID returned");
+  }
   
   await supabase.from("family_members").insert({
     family_id: data.id,
@@ -296,6 +447,25 @@ export async function declineMember(familyId, userId) {
 
 // Check if current user is admin of family
 export async function isFamilyAdmin(familyId) {
+  // Demo mode: check localStorage
+  if (isDemoMode()) {
+    const userId = getUserId();
+    if (!userId || !familyId) return false;
+    
+    const memberKey = `demo_member_${familyId}_${userId}`;
+    const memberStr = localStorage.getItem(memberKey);
+    if (memberStr) {
+      try {
+        const member = JSON.parse(memberStr);
+        return member.is_admin || false;
+      } catch (e) {
+        console.error("[DEMO] Failed to parse member:", e);
+        return false;
+      }
+    }
+    return false;
+  }
+  
   const supabase = window.supabaseClient;
   if (!supabase) return false;
   
@@ -330,6 +500,41 @@ export async function getMyMembershipStatus(familyId) {
 
 // Load user's families
 export async function loadUserFamilies() {
+  // Demo mode: load from localStorage
+  if (isDemoMode()) {
+    const userId = getUserId();
+    if (!userId) return [];
+    
+    // Find all demo families for this user
+    const families = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(`demo_member_`) && key.includes(`_${userId}`)) {
+        const memberStr = localStorage.getItem(key);
+        if (memberStr) {
+          try {
+            const member = JSON.parse(memberStr);
+            // Get family info
+            const familyKey = `demo_family_${member.family_id}`;
+            const familyStr = localStorage.getItem(familyKey);
+            if (familyStr) {
+              const family = JSON.parse(familyStr);
+              families.push({
+                id: family.id,
+                name: family.name
+              });
+            }
+          } catch (e) {
+            console.error("[DEMO] Failed to parse family member:", e);
+          }
+        }
+      }
+    }
+    
+    return families;
+  }
+  
+  // Real mode: use Supabase
   const supabase = window.supabaseClient;
   if (!supabase) throw new Error("Supabase not initialized");
   

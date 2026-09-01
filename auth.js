@@ -3,6 +3,11 @@
 let currentUser = null;
 
 export async function getCurrentUser() {
+  // If in demo mode, return demo user
+  if (demoMode && demoUserId) {
+    return currentUser;
+  }
+  
   const supabase = window.supabaseClient;
   if (!supabase) return null;
   
@@ -44,5 +49,38 @@ export function getUserDisplayName() {
 }
 
 export function getUserId() {
+  if (demoMode && demoUserId) {
+    return demoUserId;
+  }
   return currentUser?.id || null;
+}
+
+// Demo mode functions
+let demoMode = false;
+let demoUserId = null;
+
+export function enableDemoMode() {
+  demoMode = true;
+  demoUserId = "demo-user-" + Math.random().toString(36).substring(2);
+  currentUser = {
+    id: demoUserId,
+    email: "demo@nutrifam.app",
+    user_metadata: {}
+  };
+  console.log("[DEMO] Demo mode enabled, user ID:", demoUserId);
+}
+
+export function disableDemoMode() {
+  demoMode = false;
+  demoUserId = null;
+  currentUser = null;
+  console.log("[DEMO] Demo mode disabled");
+}
+
+export function isDemoMode() {
+  return demoMode;
+}
+
+export function getDemoUserId() {
+  return demoUserId;
 }
