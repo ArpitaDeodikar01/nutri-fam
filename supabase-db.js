@@ -31,29 +31,31 @@ export async function saveDailyLog(logData) {
     const existingStr = localStorage.getItem(key);
     const existing = existingStr ? JSON.parse(existingStr) : {};
     
-    // Calculate total protein: shake + meals
+    // Only recompute protein if this save includes shake or meals
+    const touchesNutrition = logData.shake !== undefined || logData.meals !== undefined;
     const shakeProtein = logData.shake ? (logData.shakeProtein || 26) : 0;
     const mealsProtein = logData.meals?.reduce((sum, m) => sum + (m.protein || 0), 0) || 0;
-    const totalProtein = shakeProtein + mealsProtein;
+    const newProteinTotal = shakeProtein + mealsProtein;
     
-    // FIX: Use object spread + explicit override. New values always win.
     const mergedLog = {
       ...existing,
       family_id: currentFamilyId,
       user_id: userId,
       log_date: logDate,
-      activity: logData.activities ?? existing.activity ?? [],
-      protein_g: totalProtein,
-      fibre_g: logData.nutrition?.fibre ?? existing.fibre_g ?? 0,
-      carbs_g: logData.nutrition?.carbs ?? existing.carbs_g ?? 0,
-      fats_g: logData.nutrition?.fats ?? existing.fats_g ?? 0,
-      water_ml: logData.water ?? existing.water_ml ?? 0,
-      sleep_hrs: logData.sleep ?? existing.sleep_hrs ?? 0
+      activity: logData.activities ?? existing?.activity ?? [],
+      protein_g: touchesNutrition ? newProteinTotal : (existing.protein_g ?? 0),
+      fibre_g: logData.nutrition?.fibre ?? existing?.fibre_g ?? 0,
+      carbs_g: logData.nutrition?.carbs ?? existing?.carbs_g ?? 0,
+      fats_g: logData.nutrition?.fats ?? existing?.fats_g ?? 0,
+      water_ml: logData.water ?? existing?.water_ml ?? 0,
+      sleep_hrs: logData.sleep ?? existing?.sleep_hrs ?? 0,
+      shake_taken: logData.shake !== undefined ? logData.shake : (existing.shake_taken ?? false)
     };
     
+    console.log('[SAVE_DEBUG] touchesNutrition:', touchesNutrition, 'newProteinTotal:', newProteinTotal);
     console.log('[SAVE_DEBUG] mergedLog for demo:', JSON.stringify(mergedLog));
-    console.log('[SAVE_DEBUG] BEFORE/AFTER water_ml:', existing.water_ml, '=>', mergedLog.water_ml);
     console.log('[SAVE_DEBUG] BEFORE/AFTER protein_g:', existing.protein_g, '=>', mergedLog.protein_g);
+    console.log('[SAVE_DEBUG] BEFORE/AFTER shake_taken:', existing.shake_taken, '=>', mergedLog.shake_taken);
     localStorage.setItem(key, JSON.stringify(mergedLog));
     console.log("[DEMO] Saved log to localStorage:", key, mergedLog);
     return;
@@ -81,34 +83,36 @@ export async function saveDailyLog(logData) {
     throw fetchError;
   }
   
-  // Calculate total protein: shake + meals
+  // Only recompute protein if this save includes shake or meals
+  const touchesNutrition = logData.shake !== undefined || logData.meals !== undefined;
   const shakeProtein = logData.shake ? (logData.shakeProtein || 26) : 0;
   const mealsProtein = logData.meals?.reduce((sum, m) => sum + (m.protein || 0), 0) || 0;
-  const totalProtein = shakeProtein + mealsProtein;
+  const newProteinTotal = shakeProtein + mealsProtein;
   
   console.log('[SAVE_DEBUG] Existing row:', existing);
-  console.log('[SAVE_DEBUG] New values - water:', logData.water, 'protein (shake+meals):', totalProtein);
+  console.log('[SAVE_DEBUG] touchesNutrition:', touchesNutrition, 'newProteinTotal:', newProteinTotal);
+  console.log('[SAVE_DEBUG] New values - water:', logData.water, 'shake:', logData.shake, 'protein (shake+meals):', newProteinTotal);
   
   // FIX: Use object spread + explicit override. New values always win.
-  // This prevents the nullish coalescing bug where existing?.field ?? newValue
-  // would lock 0 values in place permanently.
+  // Only recompute protein_g if THIS save includes shake/meals; otherwise preserve existing
   const mergedLog = {
     ...existing,
     family_id: currentFamilyId,
     user_id: userId,
     log_date: logDate,
     activity: logData.activities ?? existing?.activity ?? [],
-    protein_g: totalProtein,
+    protein_g: touchesNutrition ? newProteinTotal : (existing?.protein_g ?? 0),
     fibre_g: logData.nutrition?.fibre ?? existing?.fibre_g ?? 0,
     carbs_g: logData.nutrition?.carbs ?? existing?.carbs_g ?? 0,
     fats_g: logData.nutrition?.fats ?? existing?.fats_g ?? 0,
     water_ml: logData.water ?? existing?.water_ml ?? 0,
-    sleep_hrs: logData.sleep ?? existing?.sleep_hrs ?? 0
+    sleep_hrs: logData.sleep ?? existing?.sleep_hrs ?? 0,
+    shake_taken: logData.shake !== undefined ? logData.shake : (existing?.shake_taken ?? false)
   };
   
   console.log('[SAVE_DEBUG] merged log BEFORE upsert:', JSON.stringify(mergedLog));
-  console.log('[SAVE_DEBUG] BEFORE/AFTER water_ml:', existing?.water_ml, '=>', mergedLog.water_ml);
   console.log('[SAVE_DEBUG] BEFORE/AFTER protein_g:', existing?.protein_g, '=>', mergedLog.protein_g);
+  console.log('[SAVE_DEBUG] BEFORE/AFTER shake_taken:', existing?.shake_taken, '=>', mergedLog.shake_taken);
   
   // Use upsert: insert if not exists, update if exists. Atomically handles race conditions.
   const { error } = await supabase.from("daily_logs").upsert(
@@ -158,7 +162,7 @@ export async function loadTodayLog() {
         },
         sleep: data.sleep_hrs || 0,
         meals: [],
-        shake: false,
+        shake: data.shake_taken || false,
         shakeProtein: 26
       };
     } catch (e) {
@@ -211,7 +215,7 @@ export async function loadTodayLog() {
     },
     sleep: data.sleep_hrs || 0,
     meals: [],
-    shake: false,
+    shake: data.shake_taken || false,
     shakeProtein: 26
   };
   
