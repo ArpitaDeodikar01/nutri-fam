@@ -408,10 +408,15 @@ export async function joinFamilyByToken(token) {
 
 // Get pending requests for family (admin only)
 export async function getPendingRequests(familyId) {
+  // Demo mode: return empty array (no pending requests in demo)
+  if (isDemoMode()) {
+    return [];
+  }
+  
   const supabase = window.supabaseClient;
   if (!supabase) throw new Error("Supabase not initialized");
   
-  const { data, error } = await supabase.from("family_members").select("user_id, display_name, created_at")
+  const { data, error } = await supabase.from("family_members").select("user_id, display_name, joined_at")
     .eq("family_id", familyId)
     .eq("status", "pending");
   
@@ -421,6 +426,23 @@ export async function getPendingRequests(familyId) {
 
 // Approve a pending member
 export async function approveMember(familyId, userId) {
+  // Demo mode: update localStorage
+  if (isDemoMode()) {
+    const memberKey = `demo_member_${familyId}_${userId}`;
+    const memberStr = localStorage.getItem(memberKey);
+    if (memberStr) {
+      try {
+        const member = JSON.parse(memberStr);
+        member.status = "approved";
+        localStorage.setItem(memberKey, JSON.stringify(member));
+        console.log("[DEMO] Approved member:", userId, "in family:", familyId);
+      } catch (e) {
+        console.error("[DEMO] Failed to approve member:", e);
+      }
+    }
+    return;
+  }
+  
   const supabase = window.supabaseClient;
   if (!supabase) throw new Error("Supabase not initialized");
   
@@ -434,6 +456,23 @@ export async function approveMember(familyId, userId) {
 
 // Decline a pending member
 export async function declineMember(familyId, userId) {
+  // Demo mode: update localStorage
+  if (isDemoMode()) {
+    const memberKey = `demo_member_${familyId}_${userId}`;
+    const memberStr = localStorage.getItem(memberKey);
+    if (memberStr) {
+      try {
+        const member = JSON.parse(memberStr);
+        member.status = "declined";
+        localStorage.setItem(memberKey, JSON.stringify(member));
+        console.log("[DEMO] Declined member:", userId, "in family:", familyId);
+      } catch (e) {
+        console.error("[DEMO] Failed to decline member:", e);
+      }
+    }
+    return;
+  }
+  
   const supabase = window.supabaseClient;
   if (!supabase) throw new Error("Supabase not initialized");
   

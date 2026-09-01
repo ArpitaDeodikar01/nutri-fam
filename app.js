@@ -291,7 +291,7 @@ function renderFamily(){
       if (requests.length > 0) {
         const requestsHTML = requests.map(r => `
           <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:#f5f7f4;border-radius:8px;margin-bottom:8px">
-            <div><strong>${r.display_name}</strong><br><small style="color:var(--muted)">${new Date(r.created_at).toLocaleDateString()}</small></div>
+            <div><strong>${r.display_name}</strong><br><small style="color:var(--muted)">${new Date(r.joined_at).toLocaleDateString()}</small></div>
             <div style="display:flex;gap:8px">
               <button onclick="approveRequest('${r.user_id}')" style="background:green;color:white;border:none;padding:6px 12px;border-radius:6px">✓</button>
               <button onclick="declineRequest('${r.user_id}')" style="background:red;color:white;border:none;padding:6px 12px;border-radius:6px">✗</button>
