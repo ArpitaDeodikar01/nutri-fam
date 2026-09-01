@@ -277,37 +277,44 @@ function updatePreview(){
 
 function renderFamily(){
   (async () => {
-    const familyId = getCurrentFamily();
-    if (!familyId) {
-      document.getElementById("leaderboardContainer").innerHTML = 
-        '<div style="text-align:center;padding:40px;color:var(--muted)"><h3>No family yet</h3><p>Create or join a family to get started.</p></div>';
-      return;
-    }
-    
-    // Check if current user is pending
-    const membership = await getMyMembershipStatus(familyId);
-    if (membership?.status === "pending") {
-      // Load family name for the message
-      const { data: family } = await window.supabaseClient.from("families").select("name").eq("id", familyId).maybeSingle();
-      const familyName = family?.name || "the family";
+    try {
+      const familyId = getCurrentFamily();
+      if (!familyId) {
+        document.getElementById("leaderboardContainer").innerHTML = 
+          '<div style="text-align:center;padding:40px;color:var(--muted)"><h3>No family yet</h3><p>Create or join a family to get started.</p></div>';
+        return;
+      }
       
-      document.getElementById("leaderboardContainer").innerHTML = `
-        <div style="text-align:center;padding:40px;background:#fff3cd;border-radius:10px">
-          <h3 style="margin:0 0 12px 0">⏳ Waiting for Approval</h3>
-          <p style="color:var(--muted);margin:0">You've requested to join <strong>${familyName}</strong>. Waiting for approval from the family admin.</p>
-        </div>
-      `;
-      return;
-    }
-    
-    // Check if user is admin and has pending requests
-    const admin = await isFamilyAdmin(familyId);
-    if (admin) {
-      const requests = await getPendingRequests(familyId);
-      if (requests.length > 0) {
-        const requestsHTML = requests.map(r => `
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:#f5f7f4;border-radius:8px;margin-bottom:8px">
-            <div><strong>${r.display_name}</strong><br><small style="color:var(--muted)">${new Date(r.joined_at).toLocaleDateString()}</small></div>
+      // Check if current user is pending
+      const membership = await getMyMembershipStatus(familyId);
+      console.log("[RENDER_FAMILY] Current user membership:", membership);
+      
+      if (membership?.status === "pending") {
+        // Load family name for the message
+        const { data: family } = await window.supabaseClient.from("families").select("name").eq("id", familyId).maybeSingle();
+        const familyName = family?.name || "the family";
+        
+        document.getElementById("leaderboardContainer").innerHTML = `
+          <div style="text-align:center;padding:40px;background:#fff3cd;border-radius:10px">
+            <h3 style="margin:0 0 12px 0">⏳ Waiting for Approval</h3>
+            <p style="color:var(--muted);margin:0">You've requested to join <strong>${familyName}</strong>. Waiting for approval from the family admin.</p>
+          </div>
+        `;
+        return;
+      }
+      
+      // Check if user is admin and has pending requests
+      const admin = await isFamilyAdmin(familyId);
+      console.log("[RENDER_FAMILY] Is admin:", admin);
+      
+      if (admin) {
+        const requests = await getPendingRequests(familyId);
+        console.log("[RENDER_FAMILY] Pending requests:", requests);
+        
+        if (requests.length > 0) {
+          const requestsHTML = requests.map(r => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:#f5f7f4;border-radius:8px;margin-bottom:8px">
+              <div><strong>${r.display_name}</strong><br><small style="color:var(--muted)">${new Date(r.joined_at).toLocaleDateString()}</small></div>
             <div style="display:flex;gap:8px">
               <button onclick="approveRequest('${r.user_id}')" style="background:green;color:white;border:none;padding:6px 12px;border-radius:6px">✓</button>
               <button onclick="declineRequest('${r.user_id}')" style="background:red;color:white;border:none;padding:6px 12px;border-radius:6px">✗</button>
@@ -340,6 +347,11 @@ function renderFamily(){
     }
     
     renderLeaderboard();
+    } catch (error) {
+      console.error("[RENDER_FAMILY] Error:", error);
+      document.getElementById("leaderboardContainer").innerHTML = 
+        `<div style="color:var(--muted);font-size:12px;padding:20px">Error loading family leaderboard: ${error.message}</div>`;
+    }
   })();
 }
 
