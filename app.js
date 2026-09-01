@@ -83,10 +83,12 @@ const defaultData = {
 let data = structuredClone(defaultData);
 
 async function save(){
+  console.log('[SAVE_CALL] save() invoked for date:', todayKey());
   try {
     await saveDailyLog(data.today);
+    console.log('[SAVE_CALL] save() completed successfully');
   } catch (error) {
-    console.error("Failed to save daily log:", error);
+    console.error("[SAVE_CALL] Failed to save daily log:", error);
     // Try refreshing data from Supabase and retry once
     try {
       const freshLog = await loadTodayLog();
@@ -633,6 +635,12 @@ async function waitForSupabase(maxRetries = 50) {
 // Initialize app with user and family data
 (async () => {
   try {
+    // Diagnostic check for demo mode
+    console.log('[STARTUP] Checking demo mode state...');
+    console.log('[STARTUP] isDemoMode():', isDemoMode());
+    console.log('[STARTUP] localStorage.demoMode:', localStorage.getItem('demoMode'));
+    console.log('[STARTUP] localStorage keys with "demo":', Object.keys(localStorage).filter(k => k.includes('demo')));
+    
     // Wait for Supabase client to be initialized
     await waitForSupabase();
     
@@ -664,8 +672,11 @@ async function waitForSupabase(maxRetries = 50) {
     setText("sidebarTip", MOTIVATIONS[now.getDate()%MOTIVATIONS.length][0]);
     
     // Load user's families from DB (source of truth)
+    console.log('[INIT] Starting family load');
+    console.log('[INIT] data.today at module load:', JSON.stringify(data.today));
     try {
       const families = await loadUserFamilies();
+      console.log('[INIT] loadUserFamilies returned:', families);
       
       // Populate family switcher
       const familySelect = document.getElementById("familySelect");
@@ -695,10 +706,11 @@ async function waitForSupabase(maxRetries = 50) {
       if (families.length > 0) {
         const familyId = families[0].id;
         setCurrentFamily(familyId);
-        console.log("[FAMILY] Loaded family on page load:", familyId);
+        console.log('[INIT] Set currentFamilyId to:', familyId);
         
         // Check if user is pending
         const membership = await getMyMembershipStatus(familyId);
+        console.log('[INIT] membership status:', membership);
         if (membership?.status === "pending") {
           console.log("[FAMILY] User is pending approval");
           const { data: family } = await window.supabaseClient.from("families").select("name").eq("id", familyId).maybeSingle();
@@ -709,8 +721,16 @@ async function waitForSupabase(maxRetries = 50) {
           return;
         }
         
+        console.log('[INIT] User is approved, calling loadTodayLog...');
         const todayLog = await loadTodayLog();
-        if (todayLog) data.today = todayLog;
+        console.log('[INIT] loadTodayLog returned:', JSON.stringify(todayLog));
+        console.log('[INIT] data.today BEFORE assignment:', JSON.stringify(data.today));
+        if (todayLog) {
+          data.today = todayLog;
+          console.log('[INIT] data.today AFTER assignment:', JSON.stringify(data.today));
+        } else {
+          console.log('[INIT] loadTodayLog returned null/undefined - keeping default values');
+        }
       } else {
         console.log("[FAMILY] No families found for user");
       }
@@ -734,6 +754,7 @@ async function waitForSupabase(maxRetries = 50) {
 // Family switcher
 document.getElementById("familySelect").onchange = async (e) => {
   const familyId = e.target.value;
+  console.log('[FAMILY_SWITCH] Selected family:', familyId);
   if (!familyId) {
     setCurrentFamily(null);
     renderAll();
@@ -742,14 +763,20 @@ document.getElementById("familySelect").onchange = async (e) => {
   setCurrentFamily(familyId);
   // Check membership status
   const membership = await getMyMembershipStatus(familyId);
+  console.log('[FAMILY_SWITCH] Membership status:', membership);
   if (membership?.status === "pending") {
     const { data: family } = await window.supabaseClient.from("families").select("name").eq("id", familyId).maybeSingle();
     const familyName = family?.name || "the family";
     document.getElementById("leaderboardContainer").innerHTML = 
       `<div style="text-align:center;padding:40px;background:#fff3cd;border-radius:10px"><h3 style="margin:0 0 12px 0">⏳ Waiting for Approval</h3><p style="color:var(--muted);margin:0">You've requested to join <strong>${familyName}</strong>. Waiting for approval from the family admin.</p></div>`;
   } else {
+    console.log('[FAMILY_SWITCH] Loading today log for new family...');
     const todayLog = await loadTodayLog();
-    if (todayLog) data.today = todayLog;
+    console.log('[FAMILY_SWITCH] todayLog:', todayLog);
+    if (todayLog) {
+      data.today = todayLog;
+      console.log('[FAMILY_SWITCH] Updated data.today');
+    }
     renderAll();
   }
 };

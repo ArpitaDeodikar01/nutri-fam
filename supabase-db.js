@@ -14,8 +14,11 @@ export function getCurrentFamily() {
 
 // Save daily log - merges with existing data to avoid overwriting other fields
 export async function saveDailyLog(logData) {
+  const demoModeActive = isDemoMode();
+  console.log('[SAVE_TARGET]', demoModeActive ? 'LOCALSTORAGE (demo)' : 'SUPABASE (real)', '| isDemoMode:', demoModeActive, '| userId:', getUserId());
+  
   // Demo mode: store in localStorage
-  if (isDemoMode()) {
+  if (demoModeActive) {
     const userId = getUserId();
     if (!userId) throw new Error("User not authenticated");
     if (!currentFamilyId) throw new Error("No family selected");
@@ -56,11 +59,16 @@ export async function saveDailyLog(logData) {
   const logDate = new Date().toISOString().slice(0, 10);
   
   // Fetch existing row and merge
-  const { data: existing } = await supabase.from("daily_logs").select("*")
+  const { data: existing, error: fetchError } = await supabase.from("daily_logs").select("*")
     .eq("family_id", currentFamilyId)
     .eq("user_id", userId)
     .eq("log_date", logDate)
     .maybeSingle();
+  
+  if (fetchError) {
+    console.error('[SAVE_ERROR] Failed to fetch existing log:', fetchError);
+    throw fetchError;
+  }
   
   const mergedLog = {
     family_id: currentFamilyId,
@@ -77,15 +85,25 @@ export async function saveDailyLog(logData) {
   
   // If row exists, update it; otherwise insert
   if (existing) {
+    console.log('[SAVE] Updating existing row for', logDate);
     const { error } = await supabase.from("daily_logs")
       .update(mergedLog)
       .eq("family_id", currentFamilyId)
       .eq("user_id", userId)
       .eq("log_date", logDate);
-    if (error) throw error;
+    if (error) {
+      console.error('[SAVE_ERROR] Update failed:', error);
+      throw error;
+    }
+    console.log('[SAVE] Update successful:', mergedLog);
   } else {
+    console.log('[SAVE] Inserting new row for', logDate);
     const { error } = await supabase.from("daily_logs").insert(mergedLog);
-    if (error) throw error;
+    if (error) {
+      console.error('[SAVE_ERROR] Insert failed:', error);
+      throw error;
+    }
+    console.log('[SAVE] Insert successful:', mergedLog);
   }
 }
 
@@ -122,7 +140,9 @@ export async function loadTodayLog() {
           fats: data.fats_g || 0
         },
         sleep: data.sleep_hrs || 0,
-        meals: []
+        meals: [],
+        shake: false,
+        shakeProtein: 26
       };
     } catch (e) {
       console.error("[DEMO] Failed to parse localStorage log:", e);
@@ -135,34 +155,51 @@ export async function loadTodayLog() {
   if (!supabase) throw new Error("Supabase not initialized");
   
   const userId = getUserId();
-  if (!userId) return null;
-  if (!currentFamilyId) return null;
+  if (!userId) {
+    console.log('[LOAD_DEBUG] No userId, returning null');
+    return null;
+  }
+  if (!currentFamilyId) {
+    console.log('[LOAD_DEBUG] No currentFamilyId, returning null');
+    return null;
+  }
   
   const logDate = new Date().toISOString().slice(0, 10);
-  console.log('[LOAD_DEBUG] fetching today log for:', userId, currentFamilyId, logDate);
+  console.log('[LOAD_DEBUG] fetching today log for userId:', userId, 'familyId:', currentFamilyId, 'date:', logDate);
   
-  const { data } = await supabase.from("daily_logs").select("*")
+  const { data, error } = await supabase.from("daily_logs").select("*")
     .eq("family_id", currentFamilyId)
     .eq("user_id", userId)
     .eq("log_date", logDate)
     .maybeSingle();
   
+  if (error) {
+    console.error('[LOAD_DEBUG] Query error:', error);
+  }
   console.log('[LOAD_DEBUG] fetched log:', data);
   
-  if (!data) return null;
+  if (!data) {
+    console.log('[LOAD_DEBUG] No data found, returning null');
+    return null;
+  }
   
-  return {
-    water: data.water_ml,
+  const result = {
+    water: data.water_ml || 0,
     activities: data.activity || [],
     nutrition: {
-      protein: data.protein_g,
-      fibre: data.fibre_g,
-      carbs: data.carbs_g,
-      fats: data.fats_g
+      protein: data.protein_g || 0,
+      fibre: data.fibre_g || 0,
+      carbs: data.carbs_g || 0,
+      fats: data.fats_g || 0
     },
-    sleep: data.sleep_hrs,
-    meals: []
+    sleep: data.sleep_hrs || 0,
+    meals: [],
+    shake: false,
+    shakeProtein: 26
   };
+  
+  console.log('[LOAD_DEBUG] returning transformed result:', result);
+  return result;
 }
 
 // Load leaderboard (cycle-based cumulative scores)
