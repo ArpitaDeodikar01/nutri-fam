@@ -601,6 +601,25 @@ async function waitForSupabase(maxRetries = 50) {
         `<option value="${f.id}">${f.name}</option>`
       ).join("") : '<option value="">No family</option>';
       
+      // Check for pending invite FIRST - before loading families
+      const pendingToken = sessionStorage.getItem("pendingInviteToken");
+      if (pendingToken) {
+        console.log("[FAMILY] Processing pending invite token first");
+        try {
+          const family = await joinFamilyByToken(pendingToken);
+          sessionStorage.removeItem("pendingInviteToken");
+          setCurrentFamily(family.id);
+          document.getElementById("familySelect").innerHTML += `<option value="${family.id}">${family.name}</option>`;
+          document.getElementById("familySelect").value = family.id;
+          toast("Joined family! Waiting for approval.");
+          renderAll();
+          return;
+        } catch (joinError) {
+          console.error("[FAMILY] Error joining via invite:", joinError.message);
+          toast("Error joining family: " + joinError.message);
+        }
+      }
+      
       if (families.length > 0) {
         const familyId = families[0].id;
         setCurrentFamily(familyId);
@@ -618,40 +637,10 @@ async function waitForSupabase(maxRetries = 50) {
           return;
         }
         
-        // Check for pending invite
-        const pendingToken = sessionStorage.getItem("pendingInviteToken");
-        if (pendingToken) {
-          try {
-            const family = await joinFamilyByToken(pendingToken);
-            sessionStorage.removeItem("pendingInviteToken");
-            setCurrentFamily(family.id);
-            document.getElementById("familySelect").innerHTML += `<option value="${family.id}">${family.name}</option>`;
-            document.getElementById("familySelect").value = family.id;
-            toast("Joined family! Waiting for approval.");
-            renderAll();
-            return;
-          } catch (joinError) {
-            toast("Error joining family: " + joinError.message);
-          }
-        }
-        
         const todayLog = await loadTodayLog();
         if (todayLog) data.today = todayLog;
       } else {
         console.log("[FAMILY] No families found for user");
-        const pendingToken = sessionStorage.getItem("pendingInviteToken");
-        if (pendingToken) {
-          try {
-            const family = await joinFamilyByToken(pendingToken);
-            sessionStorage.removeItem("pendingInviteToken");
-            setCurrentFamily(family.id);
-            toast("Joined! Waiting for approval.");
-            renderAll();
-            return;
-          } catch (joinError) {
-            toast("Error: " + joinError.message);
-          }
-        }
       }
     } catch (familyError) {
       console.warn("Could not load families:", familyError.message);
