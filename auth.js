@@ -5,14 +5,23 @@ let currentUser = null;
 export async function getCurrentUser() {
   // If in demo mode, return demo user
   if (demoMode && demoUserId) {
+    console.log('[AUTH] Demo mode active, returning demo user');
     return currentUser;
   }
   
   const supabase = window.supabaseClient;
-  if (!supabase) return null;
+  if (!supabase) {
+    console.log('[AUTH] Supabase not initialized in getCurrentUser');
+    return null;
+  }
   
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user }, error } = await supabase.auth.getUser();
+  console.log('[AUTH] getCurrentUser() - supabase.auth.getUser():', { user: user ? { id: user.id, email: user.email } : null, error });
+  if (error) {
+    console.error('[AUTH] Error getting user:', error);
+  }
   currentUser = user;
+  console.log('[AUTH] currentUser variable updated:', currentUser ? { id: currentUser.id, email: currentUser.email } : null);
   return user;
 }
 
@@ -52,7 +61,11 @@ export function getUserId() {
   if (demoMode && demoUserId) {
     return demoUserId;
   }
-  return currentUser?.id || null;
+  const id = currentUser?.id || null;
+  if (!id) {
+    console.warn('[AUTH] getUserId() returning null - currentUser not set:', currentUser);
+  }
+  return id;
 }
 
 // Demo mode functions

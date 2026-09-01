@@ -24,7 +24,8 @@ import {
   signOut,
   getUserId,
   getUserDisplayName,
-  enableDemoMode
+  enableDemoMode,
+  isDemoMode
 } from "./auth.js";
 
 // Import scoring functions and config
@@ -83,7 +84,11 @@ const defaultData = {
 let data = structuredClone(defaultData);
 
 async function save(){
-  console.log('[SAVE_CALL] save() invoked for date:', todayKey());
+  const userId = getUserId();
+  console.log('[SAVE_CALL] save() invoked for date:', todayKey(), 'userId:', userId, 'familyId:', getCurrentFamily());
+  if (!userId) {
+    console.error('[SAVE_CALL] CRITICAL: userId is null! Cannot save data');
+  }
   try {
     await saveDailyLog(data.today);
     console.log('[SAVE_CALL] save() completed successfully');
@@ -644,7 +649,24 @@ async function waitForSupabase(maxRetries = 50) {
     // Wait for Supabase client to be initialized
     await waitForSupabase();
     
-    const user = await getCurrentUser();
+    // CHECK AUTH STATE FIRST - directly from Supabase, don't rely on currentUser variable
+    console.log('[AUTH_CHECK] Starting direct Supabase auth check...');
+    const supabase = window.supabaseClient;
+    if (!supabase) {
+      console.error('[AUTH_CHECK] Supabase not initialized!');
+      throw new Error("Supabase not initialized");
+    }
+    
+    const { data: { user: sbUser }, error: authError } = await supabase.auth.getUser();
+    console.log('[AUTH_CHECK] supabase.auth.getUser() returned:', { user: sbUser ? { id: sbUser.id, email: sbUser.email } : null, authError });
+    if (authError) {
+      console.error('[AUTH_CHECK] Auth error:', authError);
+    }
+    
+    const user = sbUser || await getCurrentUser();
+    console.log('[AUTH_CHECK] Final user object:', user ? { id: user.id, email: user.email } : null);
+    console.log('[AUTH_CHECK] getUserId() returns:', getUserId());
+    console.log('[AUTH_CHECK] isDemoMode():', isDemoMode());
     
     // If no user, show auth modal
     if (!user) {
