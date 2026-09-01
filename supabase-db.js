@@ -139,12 +139,15 @@ export async function loadTodayLog() {
   if (!currentFamilyId) return null;
   
   const logDate = new Date().toISOString().slice(0, 10);
+  console.log('[LOAD_DEBUG] fetching today log for:', userId, currentFamilyId, logDate);
   
   const { data } = await supabase.from("daily_logs").select("*")
     .eq("family_id", currentFamilyId)
     .eq("user_id", userId)
     .eq("log_date", logDate)
     .maybeSingle();
+  
+  console.log('[LOAD_DEBUG] fetched log:', data);
   
   if (!data) return null;
   
@@ -259,6 +262,9 @@ export async function loadFamilyLeaderboard() {
       };
     }
     
+    // DEBUG: Log raw data
+    console.log('[SCORE_DEBUG] raw log for user:', log.user_id, log);
+    
     // Calculate daily score using nutrition averaging
     const nutritionPct = (
       (log.protein_g || 0) / 25 +
@@ -271,12 +277,16 @@ export async function loadFamilyLeaderboard() {
     const waterPct = Math.min(1, (log.water_ml || 0) / 2000);
     const sleepPct = Math.min(1, (log.sleep_hrs || 0) / 8);
     
+    console.log('[SCORE_DEBUG] nutrition pts:', nutritionPct * 25, 'activity pts:', activityPct * 25, 'water pts:', waterPct * 25, 'sleep pts:', sleepPct * 25);
+    
     const dailyTotal = Math.round(
       (nutritionPct * 25) +
       (activityPct * 25) +
       (waterPct * 25) +
       (sleepPct * 25)
     );
+    
+    console.log('[SCORE_DEBUG] dailyTotal:', dailyTotal);
     
     scores[userId].total += dailyTotal;
     scores[userId].daysLogged++;
@@ -300,7 +310,7 @@ export async function loadFamilyLeaderboard() {
 }
 
 // Create family
-export async function createFamily(familyName) {
+export async function createFamily(familyName, cycleLength = 30) {
   // Demo mode: create fake family
   if (isDemoMode()) {
     const userId = getUserId();
@@ -315,7 +325,8 @@ export async function createFamily(familyName) {
       id: familyId,
       name: familyName,
       invite_token: inviteToken,
-      created_by: userId
+      created_by: userId,
+      cycle_length_days: cycleLength
     }));
     
     // Store membership
@@ -330,7 +341,7 @@ export async function createFamily(familyName) {
     
     setCurrentFamily(familyId);
     
-    console.log("[DEMO] Created family:", familyId, "with token:", inviteToken);
+    console.log("[DEMO] Created family:", familyId, "with token:", inviteToken, "cycle:", cycleLength);
     return {
       id: familyId,
       name: familyName,
@@ -347,7 +358,8 @@ export async function createFamily(familyName) {
   
   const { data, error } = await supabase.from("families").insert({
     name: familyName,
-    created_by: userId
+    created_by: userId,
+    cycle_length_days: cycleLength
   }).select("id, name, invite_token").maybeSingle();
   
   if (error) throw error;

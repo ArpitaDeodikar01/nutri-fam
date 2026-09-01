@@ -255,9 +255,45 @@
     <div class="modal-card">
       <button class="close-btn" id="closeFamilyModal">×</button>
       <p class="eyebrow">CREATE</p><h2>Start your family</h2>
-      <p>Give your family a name to get started.</p>
+      <p>Give your family a name and set the leaderboard cycle.</p>
       <label>Family name<input id="familyNameInput" placeholder="e.g. The Smiths"></label>
+      <label>Leaderboard cycle (days)<input id="cycleLengthInput" type="number" min="1" max="365" value="30" placeholder="30"></label>
       <button class="primary-btn" id="createFamilySubmit">Create family</button>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="memberDetailModal">
+    <div class="modal-card">
+      <button class="close-btn" onclick="document.getElementById('memberDetailModal').classList.add('hidden')">×</button>
+      <p class="eyebrow" id="detailMemberName">Member</p>
+      <h2>Score Breakdown</h2>
+      <div id="scoreBreakdownContent" style="font-size:13px;line-height:1.8">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+          <div>
+            <strong>Activity</strong><br>
+            <span id="detailActivity" style="color:var(--muted)">- steps</span><br>
+            <span id="detailActivityPts" style="color:var(--accent)">- pts</span>
+          </div>
+          <div>
+            <strong>Nutrition</strong><br>
+            <span id="detailNutrition" style="color:var(--muted)">- g protein/fibre/carbs/fats</span><br>
+            <span id="detailNutritionPts" style="color:var(--accent)">- pts</span>
+          </div>
+          <div>
+            <strong>Water</strong><br>
+            <span id="detailWater" style="color:var(--muted)">- ml</span><br>
+            <span id="detailWaterPts" style="color:var(--accent)">- pts</span>
+          </div>
+          <div>
+            <strong>Sleep</strong><br>
+            <span id="detailSleep" style="color:var(--muted)">- hours</span><br>
+            <span id="detailSleepPts" style="color:var(--accent)">- pts</span>
+          </div>
+        </div>
+        <div style="border-top:1px solid var(--line);padding-top:12px;font-weight:600;font-size:14px">
+          <strong>Total Score: </strong><span id="detailTotalScore">0</span>
+        </div>
+      </div>
     </div>
   </div>
 

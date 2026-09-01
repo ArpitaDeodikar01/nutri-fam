@@ -234,11 +234,14 @@ function renderLeaderboard(){
         return;
       }
       
+      // Store leaderboard data globally for detail view
+      window.leaderboardData = logs;
+      
       const html = logs.map((x, i) => {
         const isViewer = x.userId === userId;
         
         return `
-    <div class="leaderboard-row">
+    <div class="leaderboard-row" onclick="showMemberDetail(${i})" style="cursor:pointer;transition:background 0.2s" onmouseover="this.style.background='var(--hover-bg)'" onmouseout="this.style.background=''">
       <span class="leaderboard-rank">${i===0?"👑":(i+1)}</span>
       <div class="leaderboard-member">
         <span class="leaderboard-member-name">${x.name}${x.isAdmin?" (Admin)":""}</span>
@@ -480,14 +483,16 @@ document.getElementById("createFamilyBtn").onclick=()=>{familyModal.classList.re
 document.getElementById("closeFamilyModal").onclick=()=>familyModal.classList.add("hidden");
 document.getElementById("createFamilySubmit").onclick=async ()=>{
   const familyName=document.getElementById("familyNameInput").value.trim();
+  const cycleLength=+document.getElementById("cycleLengthInput").value || 30;
   if(!familyName)return toast("Enter a family name.");
   
   try {
-    const family = await createFamily(familyName);
+    const family = await createFamily(familyName, cycleLength);
     console.log("[FAMILY] Created family:", family.id, "with token:", family.invite_token);
     toast("Family created!");
     familyModal.classList.add("hidden");
     document.getElementById("familyNameInput").value="";
+    document.getElementById("cycleLengthInput").value="30";
     setCurrentFamily(family.id);
     console.log("[FAMILY] Set current family to:", family.id);
     generateInviteLink(family.invite_token);
@@ -748,3 +753,31 @@ document.getElementById("familySelect").onchange = async (e) => {
     renderAll();
   }
 };
+
+// Show member score detail
+function showMemberDetail(index) {
+  if (!window.leaderboardData || !window.leaderboardData[index]) return;
+  
+  const member = window.leaderboardData[index];
+  
+  // Calculate percentages for display
+  const activityPct = Math.min(100, Math.round((member.activity / 25) * 100));
+  const nutritionPct = Math.min(100, Math.round((member.nutrition / 25) * 100));
+  const waterPct = Math.min(100, Math.round((member.water / 25) * 100));
+  const sleepPct = Math.min(100, Math.round((member.sleep / 25) * 100));
+  
+  // Update modal content
+  document.getElementById("detailMemberName").textContent = member.name;
+  document.getElementById("detailActivity").textContent = `🏃 ${activityPct}% of goal`;
+  document.getElementById("detailActivityPts").textContent = `${Math.round(member.activity)} / 25 pts`;
+  document.getElementById("detailNutrition").textContent = `🥗 ${nutritionPct}% of goal`;
+  document.getElementById("detailNutritionPts").textContent = `${Math.round(member.nutrition)} / 25 pts`;
+  document.getElementById("detailWater").textContent = `💧 ${waterPct}% of goal`;
+  document.getElementById("detailWaterPts").textContent = `${Math.round(member.water)} / 25 pts`;
+  document.getElementById("detailSleep").textContent = `😴 ${sleepPct}% of goal`;
+  document.getElementById("detailSleepPts").textContent = `${Math.round(member.sleep)} / 25 pts`;
+  document.getElementById("detailTotalScore").textContent = member.total;
+  
+  // Show modal
+  document.getElementById("memberDetailModal").classList.remove("hidden");
+}
