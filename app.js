@@ -284,6 +284,22 @@ function renderFamily(){
       return;
     }
     
+    // Check if current user is pending
+    const membership = await getMyMembershipStatus(familyId);
+    if (membership?.status === "pending") {
+      // Load family name for the message
+      const { data: family } = await window.supabaseClient.from("families").select("name").eq("id", familyId).maybeSingle();
+      const familyName = family?.name || "the family";
+      
+      document.getElementById("leaderboardContainer").innerHTML = `
+        <div style="text-align:center;padding:40px;background:#fff3cd;border-radius:10px">
+          <h3 style="margin:0 0 12px 0">⏳ Waiting for Approval</h3>
+          <p style="color:var(--muted);margin:0">You've requested to join <strong>${familyName}</strong>. Waiting for approval from the family admin.</p>
+        </div>
+      `;
+      return;
+    }
+    
     // Check if user is admin and has pending requests
     const admin = await isFamilyAdmin(familyId);
     if (admin) {
@@ -582,8 +598,10 @@ async function waitForSupabase(maxRetries = 50) {
         const membership = await getMyMembershipStatus(familyId);
         if (membership?.status === "pending") {
           console.log("[FAMILY] User is pending approval");
+          const { data: family } = await window.supabaseClient.from("families").select("name").eq("id", familyId).maybeSingle();
+          const familyName = family?.name || "the family";
           document.getElementById("leaderboardContainer").innerHTML = 
-            '<div style="text-align:center;padding:40px;color:var(--muted)"><h3>⏳ Waiting for approval</h3><p>The family creator will approve your request soon.</p></div>';
+            `<div style="text-align:center;padding:40px;background:#fff3cd;border-radius:10px"><h3 style="margin:0 0 12px 0">⏳ Waiting for Approval</h3><p style="color:var(--muted);margin:0">You've requested to join <strong>${familyName}</strong>. Waiting for approval from the family admin.</p></div>`;
           renderAll();
           return;
         }
@@ -652,8 +670,10 @@ document.getElementById("familySelect").onchange = async (e) => {
   // Check membership status
   const membership = await getMyMembershipStatus(familyId);
   if (membership?.status === "pending") {
+    const { data: family } = await window.supabaseClient.from("families").select("name").eq("id", familyId).maybeSingle();
+    const familyName = family?.name || "the family";
     document.getElementById("leaderboardContainer").innerHTML = 
-      '<div style="text-align:center;padding:40px;color:var(--muted)"><h3>⏳ Waiting for approval</h3><p>The family creator will approve your request soon.</p></div>';
+      `<div style="text-align:center;padding:40px;background:#fff3cd;border-radius:10px"><h3 style="margin:0 0 12px 0">⏳ Waiting for Approval</h3><p style="color:var(--muted);margin:0">You've requested to join <strong>${familyName}</strong>. Waiting for approval from the family admin.</p></div>`;
   } else {
     const todayLog = await loadTodayLog();
     if (todayLog) data.today = todayLog;

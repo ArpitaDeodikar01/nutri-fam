@@ -522,6 +522,28 @@ export async function isFamilyAdmin(familyId) {
 
 // Get current user's membership status for family
 export async function getMyMembershipStatus(familyId) {
+  // Demo mode: check localStorage
+  if (isDemoMode()) {
+    const userId = getUserId();
+    if (!userId || !familyId) return null;
+    
+    const memberKey = `demo_member_${familyId}_${userId}`;
+    const memberStr = localStorage.getItem(memberKey);
+    if (memberStr) {
+      try {
+        const member = JSON.parse(memberStr);
+        return {
+          status: member.status || "approved",
+          is_admin: member.is_admin || false
+        };
+      } catch (e) {
+        console.error("[DEMO] Failed to parse member:", e);
+        return null;
+      }
+    }
+    return null;
+  }
+  
   const supabase = window.supabaseClient;
   if (!supabase) return null;
   
