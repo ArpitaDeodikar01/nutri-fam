@@ -358,7 +358,9 @@ export async function createFamily(familyName) {
   await supabase.from("family_members").insert({
     family_id: data.id,
     user_id: userId,
-    display_name: await getUserDisplayName()
+    display_name: await getUserDisplayName(),
+    is_admin: true,
+    status: "approved"
   });
   
   setCurrentFamily(data.id);
