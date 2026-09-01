@@ -106,9 +106,12 @@ async function save(){
       },
       water: data.today.water,
       sleep: data.today.sleep,
+      shake: data.today.shake,
+      shakeProtein: data.today.shakeProtein,
       meals: data.today.meals
     };
     console.log('[PAYLOAD_DEBUG] transformed payload to send:', JSON.stringify(payloadToSend));
+    console.log('[PAYLOAD_DEBUG] shake included:', payloadToSend.shake);
     
     await saveDailyLog(payloadToSend);
     console.log('[SAVE_CALL] save() completed successfully');
@@ -491,7 +494,15 @@ document.getElementById("addMealBtn").onclick=()=>{
   getToday().meals.push({food,type:document.getElementById("mealType").value,qty:q,calories:f.calories*q/100,protein:f.protein*q/100,carbs:f.carbs*q/100,fat:f.fat*q/100});
   save();renderAll();toast("Meal added 🍱");
 };
-document.getElementById("shakeBtn").onclick=()=>{getToday().shake=!getToday().shake;save();renderAll();toast(getToday().shake?"Protein shake logged 💪":"Protein shake unchecked")};
+document.getElementById("shakeBtn").onclick=async ()=>{
+  console.log('[SHAKE_CLICK] Button clicked, current shake state:', getToday().shake);
+  getToday().shake = !getToday().shake;
+  console.log('[SHAKE_CLICK] Toggled shake to:', getToday().shake);
+  await save();
+  console.log('[SHAKE_CLICK] Save completed');
+  renderAll();
+  toast(getToday().shake ? "Protein shake logged 💪" : "Protein shake unchecked");
+};
 document.querySelectorAll("[data-water]").forEach(b=>b.onclick=()=>{getToday().water=Math.min(5000,getToday().water+ +b.dataset.water);save();renderAll();toast("Water added 💧")});
 document.getElementById("saveSleep").onclick=()=>{const v=Math.max(0,+document.getElementById("sleepInput").value||0);getToday().sleep=v;save();renderAll();toast("Sleep saved 😴")};
 document.getElementById("addActivityBtn").onclick=()=>{
