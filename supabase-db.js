@@ -389,6 +389,19 @@ export async function joinFamilyByToken(token) {
     throw new Error("Family not found");
   }
   
+  // Check if user is already a member
+  console.log("[JOIN] Checking for existing membership...");
+  const { data: existingMember } = await supabase.from("family_members").select("id, status")
+    .eq("family_id", families.id)
+    .eq("user_id", userId)
+    .maybeSingle();
+  
+  if (existingMember) {
+    console.log("[JOIN] User already a member with status:", existingMember.status);
+    setCurrentFamily(families.id);
+    return families;
+  }
+  
   console.log("[JOIN] Found family:", families.id, "- inserting user as pending...");
   const { error: memberError } = await supabase.from("family_members").insert({
     family_id: families.id,
@@ -618,4 +631,62 @@ export async function getUserDisplayName() {
   if (!supabase) return "Guest";
   const { data: { user } } = await supabase.auth.getUser();
   return user?.email?.split("@")[0] || "Guest";
+}
+
+// Leave family (any member)
+export async function leaveFamily(familyId) {
+  // Demo mode: delete from localStorage
+  if (isDemoMode()) {
+    const userId = getUserId();
+    if (!userId || !familyId) return;
+    
+    const memberKey = `demo_member_${familyId}_${userId}`;
+    localStorage.removeItem(memberKey);
+    console.log("[DEMO] Left family:", familyId);
+    return;
+  }
+  
+  const supabase = window.supabaseClient;
+  if (!supabase) throw new Error("Supabase not initialized");
+  
+  const userId = getUserId();
+  if (!userId) throw new Error("User not authenticated");
+  
+  const { error } = await supabase.from("family_members")
+    .delete()
+    .eq("family_id", familyId)
+    .eq("user_id", userId);
+  
+  if (error) throw error;
+  console.log("[FAMILY] Left family:", familyId);
+}
+
+// Delete family (admin only - cascades to family_members + daily_logs via FK)
+export async function deleteFamily(familyId) {
+  // Demo mode: delete from localStorage
+  if (isDemoMode()) {
+    const familyKey = `demo_family_${familyId}`;
+    localStorage.removeItem(familyKey);
+    
+    // Delete all members for this family
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(`demo_member_${familyId}_`)) {
+        localStorage.removeItem(key);
+      }
+    }
+    
+    console.log("[DEMO] Deleted family:", familyId);
+    return;
+  }
+  
+  const supabase = window.supabaseClient;
+  if (!supabase) throw new Error("Supabase not initialized");
+  
+  const { error } = await supabase.from("families")
+    .delete()
+    .eq("id", familyId);
+  
+  if (error) throw error;
+  console.log("[FAMILY] Deleted family:", familyId);
 }

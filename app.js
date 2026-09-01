@@ -12,7 +12,9 @@ import {
   approveMember,
   declineMember,
   isFamilyAdmin,
-  getMyMembershipStatus
+  getMyMembershipStatus,
+  leaveFamily,
+  deleteFamily
 } from "./supabase-db.js";
 
 import {
@@ -303,9 +305,22 @@ function renderFamily(){
         return;
       }
       
-      // Check if user is admin and has pending requests
+      // Get admin and family info for Leave/Delete buttons
       const admin = await isFamilyAdmin(familyId);
+      const { data: family } = await window.supabaseClient.from("families").select("name").eq("id", familyId).maybeSingle();
+      const familyName = family?.name || "Family";
+      
       console.log("[RENDER_FAMILY] Is admin:", admin);
+      
+      // Add Leave/Delete buttons at the top
+      const actionBtn = admin 
+        ? `<button onclick="deleteCurrentFamily()" style="background:#d32f2f;color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;font-size:14px">🗑️ Delete Family</button>`
+        : `<button onclick="leaveCurrentFamily()" style="background:#ff9800;color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;font-size:14px">👋 Leave Family</button>`;
+      
+      let headerHTML = `<div style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center">
+        <p class="eyebrow">LEADERBOARD</p>
+        ${actionBtn}
+      </div>`;
       
       if (admin) {
         const requests = await getPendingRequests(familyId);
@@ -315,38 +330,90 @@ function renderFamily(){
           const requestsHTML = requests.map(r => `
             <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:#f5f7f4;border-radius:8px;margin-bottom:8px">
               <div><strong>${r.display_name}</strong><br><small style="color:var(--muted)">${new Date(r.joined_at).toLocaleDateString()}</small></div>
-            <div style="display:flex;gap:8px">
-              <button onclick="approveRequest('${r.user_id}')" style="background:green;color:white;border:none;padding:6px 12px;border-radius:6px">✓</button>
-              <button onclick="declineRequest('${r.user_id}')" style="background:red;color:white;border:none;padding:6px 12px;border-radius:6px">✗</button>
+              <div style="display:flex;gap:8px">
+                <button onclick="approveRequest('${r.user_id}')" style="background:green;color:white;border:none;padding:6px 12px;border-radius:6px;cursor:pointer">✓</button>
+                <button onclick="declineRequest('${r.user_id}')" style="background:red;color:white;border:none;padding:6px 12px;border-radius:6px;cursor:pointer">✗</button>
+              </div>
             </div>
-          </div>
-        `).join("");
-        
-        document.getElementById("leaderboardContainer").innerHTML = `
-          <div style="margin-bottom:20px;padding:16px;background:#fff3cd;border-radius:10px">
-            <h4 style="margin:0 0 12px 0">⏳ Pending Requests</h4>
-            ${requestsHTML}
-          </div>
-          <div id="leaderboardRows"></div>
-        `;
-        
-        // Make functions available globally
-        window.approveRequest = async (userId) => {
-          await approveMember(familyId, userId);
-          renderFamily();
-        };
-        window.declineRequest = async (userId) => {
-          await declineMember(familyId, userId);
-          renderFamily();
-        };
-        
-        // Load leaderboard below requests
-        renderLeaderboard();
-        return;
+          `).join("");
+          
+          document.getElementById("leaderboardContainer").innerHTML = headerHTML + `
+            <div style="margin-bottom:20px;padding:16px;background:#fff3cd;border-radius:10px">
+              <h4 style="margin:0 0 12px 0">⏳ Pending Requests</h4>
+              ${requestsHTML}
+            </div>
+            <div id="leaderboardRows"></div>
+          `;
+          
+          // Make functions available globally
+          window.approveRequest = async (userId) => {
+            await approveMember(familyId, userId);
+            renderFamily();
+          };
+          window.declineRequest = async (userId) => {
+            await declineMember(familyId, userId);
+            renderFamily();
+          };
+        } else {
+          document.getElementById("leaderboardContainer").innerHTML = headerHTML + `<div id="leaderboardRows"></div>`;
+        }
+      } else {
+        document.getElementById("leaderboardContainer").innerHTML = headerHTML + `<div id="leaderboardRows"></div>`;
       }
-    }
-    
-    renderLeaderboard();
+      
+      // Make action functions available globally
+      window.leaveCurrentFamily = async () => {
+        if (confirm(`Leave "${familyName}"? You won't see this family's leaderboard anymore.`)) {
+          try {
+            await leaveFamily(familyId);
+            toast("Left family!");
+            // Reload families and switch to another or empty state
+            const families = await loadUserFamilies();
+            const familySelect = document.getElementById("familySelect");
+            familySelect.innerHTML = families.length ? families.map(f => 
+              `<option value="${f.id}">${f.name}</option>`
+            ).join("") : '<option value="">No family</option>';
+            
+            if (families.length > 0) {
+              setCurrentFamily(families[0].id);
+              familySelect.value = families[0].id;
+            } else {
+              setCurrentFamily(null);
+            }
+            renderAll();
+          } catch (error) {
+            toast("Error leaving family: " + error.message);
+          }
+        }
+      };
+      
+      window.deleteCurrentFamily = async () => {
+        if (confirm(`Delete "${familyName}"? This cannot be undone. All members and data will be removed.`)) {
+          try {
+            await deleteFamily(familyId);
+            toast("Family deleted!");
+            // Reload families and switch to another or empty state
+            const families = await loadUserFamilies();
+            const familySelect = document.getElementById("familySelect");
+            familySelect.innerHTML = families.length ? families.map(f => 
+              `<option value="${f.id}">${f.name}</option>`
+            ).join("") : '<option value="">No family</option>';
+            
+            if (families.length > 0) {
+              setCurrentFamily(families[0].id);
+              familySelect.value = families[0].id;
+            } else {
+              setCurrentFamily(null);
+            }
+            renderAll();
+          } catch (error) {
+            toast("Error deleting family: " + error.message);
+          }
+        }
+      };
+      
+      // Load leaderboard below
+      renderLeaderboard();
     } catch (error) {
       console.error("[RENDER_FAMILY] Error:", error);
       document.getElementById("leaderboardContainer").innerHTML = 
