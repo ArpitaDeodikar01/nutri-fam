@@ -86,12 +86,31 @@ let data = structuredClone(defaultData);
 
 async function save(){
   const userId = getUserId();
-  console.log('[SAVE_CALL] save() invoked for date:', todayKey(), 'userId:', userId, 'familyId:', getCurrentFamily());
+  const familyId = getCurrentFamily();
+  console.log('[SAVE_CALL] save() invoked for date:', todayKey(), 'userId:', userId, 'familyId:', familyId);
+  console.log('[PAYLOAD_DEBUG] local state before save:', JSON.stringify(data.today));
+  
   if (!userId) {
     console.error('[SAVE_CALL] CRITICAL: userId is null! Cannot save data');
   }
+  
   try {
-    await saveDailyLog(data.today);
+    // Log what we're about to send
+    const payloadToSend = {
+      activities: data.today.activities,
+      nutrition: {
+        protein: (data.today.shake ? data.today.shakeProtein : 0) + (data.today.meals?.reduce((sum, m) => sum + m.protein, 0) || 0),
+        fibre: data.today.nutrition?.fibre || 0,
+        carbs: data.today.nutrition?.carbs || 0,
+        fats: data.today.nutrition?.fats || 0
+      },
+      water: data.today.water,
+      sleep: data.today.sleep,
+      meals: data.today.meals
+    };
+    console.log('[PAYLOAD_DEBUG] transformed payload to send:', JSON.stringify(payloadToSend));
+    
+    await saveDailyLog(payloadToSend);
     console.log('[SAVE_CALL] save() completed successfully');
   } catch (error) {
     console.error("[SAVE_CALL] Failed to save daily log:", error);

@@ -16,6 +16,7 @@ export function getCurrentFamily() {
 export async function saveDailyLog(logData) {
   const demoModeActive = isDemoMode();
   console.log('[SAVE_TARGET]', demoModeActive ? 'LOCALSTORAGE (demo)' : 'SUPABASE (real)', '| isDemoMode:', demoModeActive, '| userId:', getUserId());
+  console.log('[SAVE_DEBUG] logData received in saveDailyLog:', JSON.stringify(logData));
   
   // Demo mode: store in localStorage
   if (demoModeActive) {
@@ -30,12 +31,17 @@ export async function saveDailyLog(logData) {
     const existingStr = localStorage.getItem(key);
     const existing = existingStr ? JSON.parse(existingStr) : null;
     
+    // Calculate total protein: shake + meals
+    const shakeProtein = logData.shake ? (logData.shakeProtein || 26) : 0;
+    const mealsProtein = logData.meals?.reduce((sum, m) => sum + (m.protein || 0), 0) || 0;
+    const totalProtein = shakeProtein + mealsProtein;
+    
     const mergedLog = {
       family_id: currentFamilyId,
       user_id: userId,
       log_date: logDate,
       activity: existing?.activity || logData.activities || [],
-      protein_g: existing?.protein_g ?? logData.nutrition?.protein ?? 0,
+      protein_g: existing?.protein_g ?? totalProtein ?? logData.nutrition?.protein ?? 0,
       fibre_g: existing?.fibre_g ?? logData.nutrition?.fibre ?? 0,
       carbs_g: existing?.carbs_g ?? logData.nutrition?.carbs ?? 0,
       fats_g: existing?.fats_g ?? logData.nutrition?.fats ?? 0,
@@ -43,6 +49,7 @@ export async function saveDailyLog(logData) {
       sleep_hrs: existing?.sleep_hrs ?? logData.sleep ?? 0
     };
     
+    console.log('[SAVE_DEBUG] mergedLog for demo:', JSON.stringify(mergedLog));
     localStorage.setItem(key, JSON.stringify(mergedLog));
     console.log("[DEMO] Saved log to localStorage:", key, mergedLog);
     return;
@@ -70,12 +77,17 @@ export async function saveDailyLog(logData) {
     throw fetchError;
   }
   
+  // Calculate total protein: shake + meals
+  const shakeProtein = logData.shake ? (logData.shakeProtein || 26) : 0;
+  const mealsProtein = logData.meals?.reduce((sum, m) => sum + (m.protein || 0), 0) || 0;
+  const totalProtein = shakeProtein + mealsProtein;
+  
   const mergedLog = {
     family_id: currentFamilyId,
     user_id: userId,
     log_date: logDate,
     activity: existing?.activity || logData.activities || [],
-    protein_g: existing?.protein_g ?? logData.nutrition?.protein ?? 0,
+    protein_g: existing?.protein_g ?? totalProtein ?? logData.nutrition?.protein ?? 0,
     fibre_g: existing?.fibre_g ?? logData.nutrition?.fibre ?? 0,
     carbs_g: existing?.carbs_g ?? logData.nutrition?.carbs ?? 0,
     fats_g: existing?.fats_g ?? logData.nutrition?.fats ?? 0,
@@ -83,6 +95,7 @@ export async function saveDailyLog(logData) {
     sleep_hrs: existing?.sleep_hrs ?? logData.sleep ?? 0
   };
   
+  console.log('[SAVE_DEBUG] mergedLog for Supabase:', JSON.stringify(mergedLog));
   // If row exists, update it; otherwise insert
   if (existing) {
     console.log('[SAVE] Updating existing row for', logDate);
